@@ -78,6 +78,27 @@ export const getUserRunningRoutes = async (anonymousUserId: string) => {
   return data;
 };
 
+// ランニングルートを更新する関数
+export const updateRunningRoute = async (
+  routeId: string, 
+  updates: Partial<Omit<RunningRoute, 'id' | 'created_at' | 'updated_at'>>
+) => {
+  const { data, error } = await supabase
+    .from('running_routes')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', routeId)
+    .select();
+
+  if (error) {
+    throw new Error(`Failed to update route: ${error.message}`);
+  }
+
+  return data[0];
+};
+
 // ランニングルートを削除する関数
 export const deleteRunningRoute = async (routeId: string) => {
   const { error } = await supabase
