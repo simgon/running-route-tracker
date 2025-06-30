@@ -403,11 +403,12 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         let mouseUpListener: google.maps.MapsEventListener | null = null;
         let touchMoveListener: google.maps.MapsEventListener | null = null;
         let touchEndListener: google.maps.MapsEventListener | null = null;
+        let documentMouseMoveHandler: ((e: MouseEvent) => void) | null = null;
 
         const startDrag = () => {
           if (!mapRef.current) return;
 
-          // マウスムーブリスナー
+          // マウスムーブリスナー（マップ上）
           mouseMoveListener = mapRef.current.addListener(
             "mousemove",
             (e: google.maps.MapMouseEvent) => {
@@ -422,7 +423,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             }
           );
 
-          // タッチムーブリスナー
+          // タッチムーブリスナー（マップ上）
           touchMoveListener = mapRef.current.addListener(
             "touchmove",
             (e: google.maps.MapMouseEvent) => {
@@ -436,6 +437,41 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               }
             }
           );
+
+          // ドキュメントレベルでのマウスムーブも監視（マップ外でのドラッグ対応）
+          documentMouseMoveHandler = (e: MouseEvent) => {
+            if (isDragging && mapRef.current) {
+              // マウス座標をマップ座標に変換
+              const mapDiv = mapRef.current.getDiv();
+              const rect = mapDiv.getBoundingClientRect();
+              const x = e.clientX - rect.left;
+              const y = e.clientY - rect.top;
+              
+              // マップ内の場合のみ処理
+              if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                const projection = mapRef.current.getProjection();
+                if (projection) {
+                  const bounds = mapRef.current.getBounds();
+                  if (bounds) {
+                    const ne = bounds.getNorthEast();
+                    const sw = bounds.getSouthWest();
+                    const lat = sw.lat() + (ne.lat() - sw.lat()) * (1 - y / rect.height);
+                    const lng = sw.lng() + (ne.lng() - sw.lng()) * (x / rect.width);
+                    
+                    const newPos = new google.maps.LatLng(lat, lng);
+                    marker.setPosition(newPos);
+                    
+                    const currentOnPointDrag = (window as any).currentOnPointDrag;
+                    if (currentOnPointDrag) {
+                      currentOnPointDrag(index, lat, lng);
+                    }
+                  }
+                }
+              }
+            }
+          };
+
+          document.addEventListener('mousemove', documentMouseMoveHandler);
 
           // タッチエンドリスナー
           touchEndListener = mapRef.current.addListener(
@@ -493,6 +529,10 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                   google.maps.event.removeListener(mouseUpListener);
                   mouseUpListener = null;
                 }
+                if (documentMouseMoveHandler) {
+                  document.removeEventListener('mousemove', documentMouseMoveHandler);
+                  documentMouseMoveHandler = null;
+                }
                 if (touchMoveListener) {
                   google.maps.event.removeListener(touchMoveListener);
                   touchMoveListener = null;
@@ -500,6 +540,10 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                 if (touchEndListener) {
                   google.maps.event.removeListener(touchEndListener);
                   touchEndListener = null;
+                }
+                if (documentMouseMoveHandler) {
+                  document.removeEventListener('mousemove', documentMouseMoveHandler);
+                  documentMouseMoveHandler = null;
                 }
               }
             }
@@ -568,6 +612,10 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                 if (mouseUpListener) {
                   google.maps.event.removeListener(mouseUpListener);
                   mouseUpListener = null;
+                }
+                if (documentMouseMoveHandler) {
+                  document.removeEventListener('mousemove', documentMouseMoveHandler);
+                  documentMouseMoveHandler = null;
                 }
               }
             }
@@ -724,11 +772,9 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             longTapTimer = null;
           }
           
-          // ドラッグモードが有効だった場合は終了処理
-          if (dragModeActive) {
+          // ドラッグモードが有効だったが、まだドラッグを開始していない場合のみ終了処理
+          if (dragModeActive && !isDragging) {
             dragModeActive = false;
-            isDragging = false;
-            isDraggingRef.current = false;
             
             // マーカーの色を元に戻す
             marker.setIcon({
@@ -743,11 +789,6 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             // 地図のドラッグを再有効化
             if (mapRef.current) {
               mapRef.current.setOptions({ draggable: true });
-            }
-            
-            // ドラッグ終了コールバック
-            if (onDragEnd) {
-              onDragEnd();
             }
           }
           
