@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import GoogleMap from "./components/GoogleMap";
 import SaveRouteModal from "./components/SaveRouteModal";
 import RouteListSidebar, { RouteListSidebarRef } from "./components/RouteListSidebar";
+import RouteOverlay from "./components/RouteOverlay";
 import { useGeolocation } from "./hooks/useGeolocation";
 import { useRunningRoute } from "./hooks/useRunningRoute";
 import { useRouteStorage } from "./hooks/useRouteStorage";
@@ -11,16 +12,15 @@ import "./App.css";
 
 function App() {
   const { position, error, loading, startTracking, stopTracking, isTracking } = useGeolocation();
+  const { routeState, startRecording, pauseRecording, resumeRecording, clearRoute, addPoint } =
+    useRunningRoute();
   const {
-    routeState,
-    startRecording,
-    stopRecording,
-    pauseRecording,
-    resumeRecording,
-    clearRoute,
-    addPoint,
-  } = useRunningRoute();
-  const { saveRoute, updateRoute, deleteRoute, isLoading: isSaving } = useRouteStorage();
+    saveRoute,
+    updateRoute,
+    deleteRoute,
+    loadUserRoutes,
+    isLoading: isSaving,
+  } = useRouteStorage();
   const [isManualMode, setIsManualMode] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [loadedRoute, setLoadedRoute] = useState<RoutePoint[]>([]);
@@ -30,7 +30,13 @@ function App() {
   const routeListRef = useRef<RouteListSidebarRef>(null);
   const [allRoutes, setAllRoutes] = useState<RunningRoute[]>([]);
   const [showAllRoutes, setShowAllRoutes] = useState(false);
+  const [savedRoutes, setSavedRoutes] = useState<RunningRoute[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [toastMessage, setToastMessage] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
 
   // デフォルトの位置（東京駅）
   const defaultCenter = {
@@ -43,6 +49,30 @@ function App() {
   const userPosition = position ? { lat: position.lat, lng: position.lng } : null;
 
   const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
+
+  // マップオーバーレイボタンの共通スタイル
+  const overlayButtonStyle = {
+    padding: "10px 20px",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer",
+    fontWeight: "bold",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+    color: "white",
+  } as const;
+
+  const getButtonStyle = (bgColor: string) => ({
+    ...overlayButtonStyle,
+    backgroundColor: `rgba(${bgColor}, 0.9)`,
+  });
+
+  // トースト通知表示関数
+  const showToast = (message: string, type: "success" | "error") => {
+    setToastMessage({ message, type });
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3000); // 3秒後に非表示
+  };
 
   // GPS位置が更新されたらルートに追加（手動モードでない場合）
   useEffect(() => {
@@ -151,6 +181,9 @@ function App() {
         await routeListRef.current.refreshRoutes();
       }
 
+      // 保存成功のトースト表示
+      showToast("ルートが正常に保存されました！", "success");
+
       // 保存成功後はルートをクリア
       clearRoute();
       setLoadedRoute([]);
@@ -193,6 +226,25 @@ function App() {
     // 表示の制御はroutePointsプロパティで行う
   };
 
+  // ルート一覧更新のコールバック
+  const handleRoutesUpdate = (routes: RunningRoute[]) => {
+    setSavedRoutes(routes);
+  };
+
+  // 初期ルート読み込み
+  useEffect(() => {
+    const loadInitialRoutes = async () => {
+      try {
+        const routes = await loadUserRoutes();
+        setSavedRoutes(routes);
+      } catch (error) {
+        console.error("初期ルート読み込みエラー:", error);
+      }
+    };
+
+    loadInitialRoutes();
+  }, []);
+
   // 手動作成開始
   const handleStartManualCreation = () => {
     // 現在の状態をクリア
@@ -209,8 +261,20 @@ function App() {
   };
 
   // 編集モード開始
-  const startEditMode = () => {
-    if (loadedRoute.length > 0) {
+  const startEditMode = (route?: RunningRoute) => {
+    if (route) {
+      // ルートが指定された場合は先に読み込む
+      handleLoadRoute(route);
+      // 少し遅延させて読み込み完了を待つ
+      setTimeout(() => {
+        setIsManualMode(false);
+        setIsEditMode(true);
+        setShowAllRoutes(false);
+      }, 100);
+    } else if (loadedRoute.length > 0) {
+      // 手動作成モードを終了
+      setIsManualMode(false);
+
       // 現在表示中のルートを編集対象とする
       setEditableRoute([...loadedRoute]);
       setIsEditMode(true);
@@ -269,10 +333,10 @@ function App() {
         await routeListRef.current.refreshRoutes();
       }
 
-      alert("ルートが正常に更新されました！");
+      showToast("ルートが正常に更新されました！", "success");
     } catch (error) {
       console.error("ルート更新エラー:", error);
-      alert("ルートの更新に失敗しました。もう一度お試しください。");
+      showToast("ルートの更新に失敗しました。もう一度お試しください。", "error");
     }
   };
 
@@ -336,14 +400,14 @@ function App() {
         setIsEditMode(false);
       }
 
-      alert("ルートが削除されました。");
+      showToast("ルートが削除されました。", "success");
 
       // サイドバーでルート一覧を自動更新するため、
       // 削除成功をサイドバーコンポーネントに通知する方法は
       // RouteListSidebarコンポーネント内でuseEffectを使用
     } catch (error) {
       console.error("ルート削除エラー:", error);
-      alert("ルートの削除に失敗しました。もう一度お試しください。");
+      showToast("ルートの削除に失敗しました。もう一度お試しください。", "error");
     }
   };
 
@@ -439,100 +503,121 @@ function App() {
 
   return (
     <div className="App">
-      <header className="App-header">
+      <header className="App-header" style={{ position: "relative" }}>
+        {/* ヘッダー左上の開閉ボタン（常に表示） */}
+        <button
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          style={{
+            position: "absolute",
+            top: "10px",
+            left: "10px",
+            width: "40px",
+            height: "40px",
+            borderRadius: "8px",
+            border: "none",
+            backgroundColor: "rgba(64, 76, 88, 0.8)",
+            color: "white",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "18px",
+            fontWeight: "bold",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+            transition: "all 0.3s ease",
+          }}
+          title={isSidebarCollapsed ? "メニューを開く" : "メニューを閉じる"}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(64, 76, 88, 1)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(64, 76, 88, 0.8)";
+          }}
+        >
+          {isSidebarCollapsed ? "☰" : "✕"}
+        </button>
+
         <h1 style={{ margin: "5px 0", fontSize: "1.5em" }}>Running Route Tracker</h1>
         <p style={{ margin: "5px 0", fontSize: "0.9em" }}>ランニングルートを記録・共有しよう</p>
       </header>
 
       <div className="app-main">
         {/* サイドバー */}
-        <div className="sidebar">
-          <RouteListSidebar
-            ref={routeListRef}
-            onLoadRoute={handleLoadRoute}
-            onDeleteRoute={handleRouteDelete}
-            onToggleAllRoutes={handleToggleAllRoutes}
-            onStartManualCreation={handleStartManualCreation}
-            onEditRoute={startEditMode}
-            selectedRouteId={selectedRouteId}
-            showAllRoutes={showAllRoutes}
-            isRecording={routeState.isRecording}
-          />
+        <div className={`sidebar ${isSidebarCollapsed ? "collapsed" : ""}`}>
+          {!isSidebarCollapsed && (
+            <RouteListSidebar
+              ref={routeListRef}
+              onLoadRoute={handleLoadRoute}
+              onDeleteRoute={handleRouteDelete}
+              onToggleAllRoutes={handleToggleAllRoutes}
+              onEditRoute={() => startEditMode()}
+              selectedRouteId={selectedRouteId}
+              showAllRoutes={showAllRoutes}
+              onRoutesUpdate={handleRoutesUpdate}
+            />
+          )}
         </div>
 
         {/* メインコンテンツ */}
         <div className="main-content">
-          {/* 制御パネル */}
-          <div className="control-panel">
-            {/* モード切替とGPS制御 */}
+          {/* 地図コンテナ（全画面表示） */}
+          <div className="map-container">
+            {/* 制御ボタンオーバーレイ */}
             <div
               style={{
+                position: "absolute",
+                top: "20px",
+                left: "20px",
+                zIndex: 1000,
                 display: "flex",
-                alignItems: "center",
-                gap: "15px",
-                marginBottom: "15px",
+                flexDirection: "column",
+                gap: "10px",
+                maxWidth: "250px",
               }}
             >
               {isEditMode && (
                 <>
-                  <button
-                    onClick={applyEdit}
-                    style={{
-                      padding: "10px 20px",
-                      backgroundColor: "#28a745",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "5px",
-                      cursor: "pointer",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    💾 保存して適用
+                  <button onClick={applyEdit} style={getButtonStyle("40, 167, 69")}>
+                    💾 保存
                   </button>
-                  <button
-                    onClick={stopEditMode}
-                    style={{
-                      padding: "10px 20px",
-                      backgroundColor: "#6c757d",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "5px",
-                      cursor: "pointer",
-                      fontWeight: "bold",
-                    }}
-                  >
+                  <button onClick={stopEditMode} style={getButtonStyle("108, 117, 125")}>
                     ❌ キャンセル
                   </button>
                 </>
               )}
 
-              {loading && <span>📡 位置情報取得中...</span>}
-              {error && <span style={{ color: "#dc3545" }}>❌ {error.message}</span>}
-            </div>
-
-            {/* ランニング制御 */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "15px",
-                marginBottom: "15px",
-              }}
-            >
+              {loading && (
+                <div
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "rgba(23, 162, 184, 0.9)",
+                    color: "white",
+                    borderRadius: "5px",
+                    fontSize: "0.9em",
+                  }}
+                >
+                  📡 位置情報取得中...
+                </div>
+              )}
+              {error && (
+                <div
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "rgba(220, 53, 69, 0.9)",
+                    color: "white",
+                    borderRadius: "5px",
+                    fontSize: "0.9em",
+                  }}
+                >
+                  ❌ {error.message}
+                </div>
+              )}
               {isManualMode ? (
                 // 手動作成モード：保存とクリアボタンのみ
                 <>
                   <button
                     onClick={() => setShowSaveModal(true)}
-                    style={{
-                      padding: "10px 20px",
-                      backgroundColor: "#28a745",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "5px",
-                      cursor: "pointer",
-                      fontWeight: "bold",
-                    }}
+                    style={getButtonStyle("40, 167, 69")}
                   >
                     💾 保存
                   </button>
@@ -542,15 +627,7 @@ function App() {
                       setEditableRoute([]);
                       setIsManualMode(false); // 手動作成モード終了
                     }}
-                    style={{
-                      padding: "10px 20px",
-                      backgroundColor: "#6c757d",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "5px",
-                      cursor: "pointer",
-                      fontWeight: "bold",
-                    }}
+                    style={getButtonStyle("108, 117, 125")}
                   >
                     ❌ キャンセル
                   </button>
@@ -560,111 +637,56 @@ function App() {
                 !isEditMode && (
                   <>
                     {!routeState.isRecording && routeState.route.length === 0 && (
-                      <button
-                        onClick={() => {
-                          if (!isTracking) {
-                            startTracking();
-                          }
-                          startRecording();
-                        }}
-                        style={{
-                          padding: "10px 20px",
-                          backgroundColor: "#007bff",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "5px",
-                          cursor: "pointer",
-                          fontWeight: "bold",
-                        }}
-                      >
-                        🏃‍♂️ 記録開始
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            if (!isTracking) {
+                              startTracking();
+                            }
+                            startRecording();
+                          }}
+                          style={getButtonStyle("0, 123, 255")}
+                        >
+                          🏃‍♂️ 記録開始
+                        </button>
+                        <button
+                          onClick={handleStartManualCreation}
+                          style={getButtonStyle("23, 162, 184")}
+                        >
+                          ✏️ 新規ルート作成
+                        </button>
+                      </>
                     )}
 
                     {routeState.isRecording && (
-                      <button
-                        onClick={pauseRecording}
-                        style={{
-                          padding: "10px 20px",
-                          backgroundColor: "#ffc107",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "5px",
-                          cursor: "pointer",
-                          fontWeight: "bold",
-                        }}
-                      >
+                      <button onClick={pauseRecording} style={getButtonStyle("255, 193, 7")}>
                         ⏸️ 一時停止
                       </button>
                     )}
 
                     {!routeState.isRecording && routeState.route.length > 0 && (
                       <>
-                        <button
-                          onClick={resumeRecording}
-                          style={{
-                            padding: "10px 20px",
-                            backgroundColor: "#28a745",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "5px",
-                            cursor: "pointer",
-                            fontWeight: "bold",
-                          }}
-                        >
+                        <button onClick={resumeRecording} style={getButtonStyle("40, 167, 69")}>
                           ▶️ 再開
                         </button>
                         <button
+                          onClick={() => setShowSaveModal(true)}
+                          style={getButtonStyle("40, 167, 69")}
+                        >
+                          💾 保存
+                        </button>
+                        <button
                           onClick={() => {
-                            stopRecording();
+                            clearRoute();
                             if (isTracking) {
                               stopTracking();
                             }
                           }}
-                          style={{
-                            padding: "10px 20px",
-                            backgroundColor: "#dc3545",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "5px",
-                            cursor: "pointer",
-                            fontWeight: "bold",
-                          }}
+                          style={getButtonStyle("108, 117, 125")}
                         >
-                          ⏹️ 停止
-                        </button>
-                        <button
-                          onClick={() => setShowSaveModal(true)}
-                          style={{
-                            padding: "10px 20px",
-                            backgroundColor: "#28a745",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "5px",
-                            cursor: "pointer",
-                            fontWeight: "bold",
-                          }}
-                        >
-                          💾 保存
+                          ❌ キャンセル
                         </button>
                       </>
-                    )}
-
-                    {routeState.route.length > 0 && (
-                      <button
-                        onClick={clearRoute}
-                        style={{
-                          padding: "10px 20px",
-                          backgroundColor: "#6c757d",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "5px",
-                          cursor: "pointer",
-                          fontWeight: "bold",
-                        }}
-                      >
-                        🗑️ クリア
-                      </button>
                     )}
                   </>
                 )
@@ -710,18 +732,28 @@ function App() {
               </div>
             )} */}
 
-            {/* 統計情報・モード表示 */}
-
+            {/* 統計情報オーバーレイ（制御ボタンの横） */}
             {(routeState.route.length > 0 || (isManualMode && editableRoute.length > 0)) && (
               <div
                 style={{
+                  position: "absolute",
+                  top: "20px",
+                  left: "170px",
+                  zIndex: 1000,
+                  backgroundColor: "rgba(0, 0, 0, 0.8)",
+                  color: "white",
+                  padding: "12px",
+                  borderRadius: "8px",
                   display: "flex",
-                  gap: "20px",
-                  fontSize: "1.1em",
+                  flexDirection: "column",
+                  gap: "6px",
+                  fontSize: "0.85em",
                   fontWeight: "bold",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+                  maxWidth: "220px",
                 }}
               >
-                <span>
+                <div>
                   📏 距離:{" "}
                   {isManualMode && editableRoute.length > 0
                     ? formatDistance(
@@ -746,25 +778,23 @@ function App() {
                         })()
                       )
                     : formatDistance(routeState.distance)}
-                </span>
+                </div>
                 {!isManualMode && (
                   <>
-                    <span>⏱️ 時間: {formatDuration(routeState.duration)}</span>
-                    <span>🏃‍♂️ ペース: {calculatePace()}/km</span>
+                    <div>⏱️ 時間: {formatDuration(routeState.duration)}</div>
+                    <div>🏃‍♂️ ペース: {calculatePace()}/km</div>
                   </>
                 )}
-                <span>
+                <div>
                   📍 ポイント数:{" "}
                   {isManualMode && editableRoute.length > 0
                     ? editableRoute.length
                     : routeState.route.length}
-                </span>
+                </div>
               </div>
             )}
-          </div>
 
-          {/* 地図コンテナ */}
-          <div className="map-container">
+            {/* Google Maps */}
             {apiKey ? (
               <GoogleMap
                 apiKey={apiKey}
@@ -810,9 +840,49 @@ function App() {
                 Google Maps API キーを設定してください
               </div>
             )}
+
+            {/* ルートオーバーレイ */}
+            <RouteOverlay
+              routes={savedRoutes}
+              selectedRouteId={selectedRouteId}
+              onSelectRoute={handleLoadRoute}
+              onEditRoute={startEditMode}
+              onDeleteRoute={handleRouteDelete}
+              onToggleAllRoutes={handleToggleAllRoutes}
+              showAllRoutes={showAllRoutes}
+              onStartManualCreation={handleStartManualCreation}
+            />
           </div>
         </div>
       </div>
+
+      {/* トースト通知 */}
+      {toastMessage && (
+        <div
+          style={{
+            position: "fixed",
+            top: "20px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+            backgroundColor:
+              toastMessage.type === "success"
+                ? "rgba(40, 167, 69, 0.95)"
+                : "rgba(220, 53, 69, 0.95)",
+            color: "white",
+            padding: "12px 24px",
+            borderRadius: "8px",
+            fontSize: "1em",
+            fontWeight: "bold",
+            boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+            animation: "slideDown 0.3s ease-out",
+            maxWidth: "90vw",
+            textAlign: "center",
+          }}
+        >
+          {toastMessage.type === "success" ? "✅" : "❌"} {toastMessage.message}
+        </div>
+      )}
 
       {/* ルート保存モーダル */}
       <SaveRouteModal

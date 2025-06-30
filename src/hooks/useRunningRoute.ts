@@ -135,25 +135,43 @@ export const useRunningRoute = (): UseRunningRouteReturn => {
     };
 
     setRouteState(prev => {
-      const newRoute = [...prev.route, newPoint];
-      let newDistance = prev.distance;
-
-      // 前のポイントがある場合、距離を計算
-      if (prev.route.length > 0) {
-        const lastPoint = prev.route[prev.route.length - 1];
-        const segmentDistance = calculateDistance(
-          lastPoint.lat,
-          lastPoint.lng,
-          newPoint.lat,
-          newPoint.lng
-        );
-        newDistance += segmentDistance;
+      // 最初のポイントは必ず追加
+      if (prev.route.length === 0) {
+        return {
+          ...prev,
+          route: [newPoint],
+          distance: 0
+        };
       }
 
+      const lastPoint = prev.route[prev.route.length - 1];
+      const segmentDistance = calculateDistance(
+        lastPoint.lat,
+        lastPoint.lng,
+        newPoint.lat,
+        newPoint.lng
+      );
+
+      // 最小距離閾値（メートル）- 精度に応じて調整
+      const minDistanceThreshold = Math.max(5, position.accuracy * 0.5);
+      
+      // 一定距離進んだ場合のみポイントを追加
+      if (segmentDistance >= minDistanceThreshold) {
+        const newRoute = [...prev.route, newPoint];
+        const newDistance = prev.distance + segmentDistance;
+
+        return {
+          ...prev,
+          route: newRoute,
+          distance: newDistance
+        };
+      }
+
+      // 距離が足りない場合はポイントを追加せず、距離のみ更新
+      // （内部的な累積距離として保持するため）
       return {
         ...prev,
-        route: newRoute,
-        distance: newDistance
+        distance: prev.distance + segmentDistance
       };
     });
   };

@@ -41,12 +41,36 @@ export const useGeolocation = (): UseGeolocationReturn => {
   };
 
   const handleError = (err: GeolocationPositionError) => {
+    let message = err.message;
+    
+    // より分かりやすいエラーメッセージに変換
+    switch (err.code) {
+      case err.PERMISSION_DENIED:
+        message = "位置情報の使用が拒否されました。ブラウザの設定で位置情報を許可してください。";
+        break;
+      case err.POSITION_UNAVAILABLE:
+        message = "位置情報が取得できません。GPS信号が受信できない可能性があります。";
+        break;
+      case err.TIMEOUT:
+        message = "位置情報の取得がタイムアウトしました。";
+        break;
+    }
+    
     const newError: GeolocationError = {
       code: err.code,
-      message: err.message
+      message: message
     };
     setError(newError);
     setLoading(false);
+    
+    // Position unavailableエラーの場合、トラッキングを停止
+    if (err.code === err.POSITION_UNAVAILABLE) {
+      setIsTracking(false);
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        setWatchId(null);
+      }
+    }
   };
 
   const startTracking = () => {
@@ -65,8 +89,8 @@ export const useGeolocation = (): UseGeolocationReturn => {
     // 高精度GPS設定（ランニング用）
     const options: PositionOptions = {
       enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 1000
+      timeout: 15000, // タイムアウトを延長
+      maximumAge: 5000 // キャッシュ期間を延長
     };
 
     // リアルタイム位置追跡を開始
@@ -96,9 +120,9 @@ export const useGeolocation = (): UseGeolocationReturn => {
         handleSuccess,
         handleError,
         {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 60000
+          enableHighAccuracy: false, // 初回は低精度で高速取得
+          timeout: 8000,
+          maximumAge: 300000 // 5分間キャッシュ
         }
       );
     }
