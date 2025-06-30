@@ -41,9 +41,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
     return `${minutes}:${(seconds % 60).toString().padStart(2, "0")}`;
   };
 
-  if (routes.length === 0) {
-    return null;
-  }
+  // ルートが0件でも新規作成ボタンを表示するため、常に表示
 
   return (
     <div
