@@ -650,6 +650,10 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           document.addEventListener("mouseup", documentMouseUp);
         };
 
+        // グローバルなイベントリスナー用の変数
+        let globalMouseUpListener: ((e: MouseEvent) => void) | null = null;
+        let globalTouchEndListener: ((e: TouchEvent) => void) | null = null;
+
         // マウス/タッチダウンでロングタップ検出とドラッグ準備
         const handleMouseDown = (e: any) => {
           // 編集モード・手動作成モードでない場合は無効化
@@ -668,6 +672,18 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               x: e.domEvent.clientX || (e.domEvent.touches && e.domEvent.touches[0].clientX),
               y: e.domEvent.clientY || (e.domEvent.touches && e.domEvent.touches[0].clientY),
             };
+
+            // グローバルなmouseup/touchendリスナーを追加
+            globalMouseUpListener = (upEvent: MouseEvent) => {
+              handleGlobalMouseUp(upEvent);
+            };
+            
+            globalTouchEndListener = (upEvent: TouchEvent) => {
+              handleGlobalMouseUp(upEvent);
+            };
+
+            document.addEventListener('mouseup', globalMouseUpListener);
+            document.addEventListener('touchend', globalTouchEndListener);
 
             // ロングタップ検出（500ms）
             longTapTimer = setTimeout(() => {
@@ -700,14 +716,55 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           }
         };
 
-        // マウスアップ/タッチエンドでロングタップタイマーをクリア
-        const handleMouseUp = (e: any) => {
+        // グローバルなマウスアップ/タッチエンド処理
+        const handleGlobalMouseUp = (_e: MouseEvent | TouchEvent) => {
+          // ロングタップタイマーをクリア
           if (longTapTimer) {
             clearTimeout(longTapTimer);
             longTapTimer = null;
           }
           
-          // ドラッグモードがアクティブでない場合のみクリック処理
+          // ドラッグモードが有効だった場合は終了処理
+          if (dragModeActive) {
+            dragModeActive = false;
+            isDragging = false;
+            isDraggingRef.current = false;
+            
+            // マーカーの色を元に戻す
+            marker.setIcon({
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: isStart || isEnd ? 8 : 6,
+              fillColor: isStart ? "#28a745" : isEnd ? "#dc3545" : "#FF8C00",
+              fillOpacity: 0.9,
+              strokeColor: "#FFFFFF",
+              strokeWeight: 2,
+            });
+            
+            // 地図のドラッグを再有効化
+            if (mapRef.current) {
+              mapRef.current.setOptions({ draggable: true });
+            }
+            
+            // ドラッグ終了コールバック
+            if (onDragEnd) {
+              onDragEnd();
+            }
+          }
+          
+          // グローバルリスナーをクリーンアップ
+          if (globalMouseUpListener) {
+            document.removeEventListener('mouseup', globalMouseUpListener);
+            globalMouseUpListener = null;
+          }
+          if (globalTouchEndListener) {
+            document.removeEventListener('touchend', globalTouchEndListener);
+            globalTouchEndListener = null;
+          }
+        };
+
+        // マーカー上でのマウスアップ/タッチエンド処理（ダブルタップ検出用）
+        const handleMouseUp = (_e: any) => {
+          // ドラッグモードがアクティブでない場合のみクリック処理を継続
           if (!dragModeActive) {
             const clickDuration = Date.now() - touchStartTime;
             // 短いタップ（500ms未満）の場合のみクリック処理を継続
@@ -715,9 +772,6 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               // 通常のクリック処理（ダブルタップ検出用）
               // この処理はclickイベントで行う
             }
-          } else {
-            // ドラッグモード終了
-            dragModeActive = false;
           }
         };
 
