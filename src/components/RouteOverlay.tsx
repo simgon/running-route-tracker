@@ -1,5 +1,6 @@
 import React from "react";
 import { RunningRoute } from "../lib/supabase";
+import "./RouteOverlay.css";
 
 interface RouteOverlayProps {
   routes: RunningRoute[];
@@ -23,6 +24,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
   onStartManualCreation,
 }) => {
   const isMobile = window.innerWidth <= 768;
+  const [isDragging, setIsDragging] = React.useState(false);
   const formatDistance = (meters: number) => {
     if (meters < 1000) {
       return `${meters.toFixed(0)}m`;
@@ -111,14 +113,52 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
           gap: "12px",
           overflowX: "auto",
           paddingBottom: "8px",
-          scrollbarWidth: "thin",
-          scrollbarColor: "#ccc transparent",
+          scrollbarWidth: "none", // Firefox
+          msOverflowStyle: "none", // IE/Edge
+          cursor: "grab",
+        }}
+        className="route-scroll-container"
+        onMouseDown={(e) => {
+          const container = e.currentTarget;
+          const startX = e.pageX - container.offsetLeft;
+          const scrollLeft = container.scrollLeft;
+          let hasMoved = false;
+          
+          container.style.cursor = "grabbing";
+          
+          const handleMouseMove = (e: MouseEvent) => {
+            hasMoved = true;
+            setIsDragging(true);
+            const x = e.pageX - container.offsetLeft;
+            const walk = (x - startX) * 2; // スクロール速度調整
+            container.scrollLeft = scrollLeft - walk;
+          };
+          
+          const handleMouseUp = () => {
+            container.style.cursor = "grab";
+            document.removeEventListener("mousemove", handleMouseMove);
+            document.removeEventListener("mouseup", handleMouseUp);
+            
+            // ドラッグ状態を少し遅延してリセット（クリックイベント抑制のため）
+            setTimeout(() => {
+              setIsDragging(false);
+            }, 100);
+          };
+          
+          document.addEventListener("mousemove", handleMouseMove);
+          document.addEventListener("mouseup", handleMouseUp);
         }}
       >
         {/* 新規ルート作成ボタン */}
         {onStartManualCreation && (
           <div
-            onClick={onStartManualCreation}
+            onClick={(e) => {
+              if (isDragging) {
+                e.preventDefault();
+                return;
+              }
+              onStartManualCreation();
+            }}
             style={{
               minWidth: isMobile ? "150px" : "200px",
               maxWidth: isMobile ? "180px" : "250px",
@@ -156,7 +196,13 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
           return (
             <div
               key={route.id}
-              onClick={() => onSelectRoute(route)}
+              onClick={(e) => {
+                if (isDragging) {
+                  e.preventDefault();
+                  return;
+                }
+                onSelectRoute(route);
+              }}
               style={{
                 minWidth: isMobile ? "150px" : "200px",
                 maxWidth: isMobile ? "180px" : "250px",

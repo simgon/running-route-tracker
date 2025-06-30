@@ -1,0 +1,9 @@
+/* ルートオーバーレイのスクロールバー非表示 */
+.route-scroll-container::-webkit-scrollbar {
+  display: none;
+}
+
+.route-scroll-container {
+  /* スクロールバーを隠しつつスクロール可能にする */
+  -webkit-overflow-scrolling: touch;
+}

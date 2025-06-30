@@ -176,9 +176,17 @@ function App() {
 
       await saveRoute(name, description, routeToSave, distance, duration);
 
-      // ルート一覧を更新
+      // サイドバーのルート一覧を更新
       if (routeListRef.current) {
         await routeListRef.current.refreshRoutes();
+      }
+
+      // オーバーレイのルート一覧を更新
+      try {
+        const updatedRoutes = await loadUserRoutes();
+        setSavedRoutes(updatedRoutes);
+      } catch (error) {
+        console.error('ルート一覧更新エラー:', error);
       }
 
       // 保存成功のトースト表示
@@ -328,9 +336,17 @@ function App() {
       setIsEditMode(false);
       setEditableRoute([]);
 
-      // ルート一覧を更新
+      // サイドバーのルート一覧を更新
       if (routeListRef.current) {
         await routeListRef.current.refreshRoutes();
+      }
+
+      // オーバーレイのルート一覧を更新
+      try {
+        const updatedRoutes = await loadUserRoutes();
+        setSavedRoutes(updatedRoutes);
+      } catch (error) {
+        console.error('ルート一覧更新エラー:', error);
       }
 
       showToast("ルートが正常に更新されました！", "success");
@@ -641,25 +657,17 @@ function App() {
                 !isEditMode && (
                   <>
                     {!routeState.isRecording && routeState.route.length === 0 && (
-                      <>
-                        <button
-                          onClick={() => {
-                            if (!isTracking) {
-                              startTracking();
-                            }
-                            startRecording();
-                          }}
-                          style={getButtonStyle("0, 123, 255")}
-                        >
-                          🏃‍♂️ 記録開始
-                        </button>
-                        <button
-                          onClick={handleStartManualCreation}
-                          style={getButtonStyle("23, 162, 184")}
-                        >
-                          ✏️ 新規ルート作成
-                        </button>
-                      </>
+                      <button
+                        onClick={() => {
+                          if (!isTracking) {
+                            startTracking();
+                          }
+                          startRecording();
+                        }}
+                        style={getButtonStyle("0, 123, 255")}
+                      >
+                        🏃‍♂️ 記録開始
+                      </button>
                     )}
 
                     {routeState.isRecording && (
