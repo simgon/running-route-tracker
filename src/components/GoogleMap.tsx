@@ -394,6 +394,9 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         });
 
         let isDragging = false;
+        let longTapTimer: NodeJS.Timeout | null = null;
+        let touchStartTime = 0;
+        let dragModeActive = false; // ドラッグモードの状態を管理
 
         // グローバルイベントリスナーを使用
         let mouseMoveListener: google.maps.MapsEventListener | null = null;
@@ -647,45 +650,74 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           document.addEventListener("mouseup", documentMouseUp);
         };
 
-        // 左クリックダウン時のみドラッグ開始（編集モード・手動作成モードで有効）
+        // マウス/タッチダウンでロングタップ検出とドラッグ準備
         const handleMouseDown = (e: any) => {
-          // 編集モード・手動作成モードでない場合はドラッグを無効化
+          // 編集モード・手動作成モードでない場合は無効化
           if (!isEditMode && !isDemoMode) return;
 
-          // 左クリック（button 0）のみドラッグを開始
-          if (e.domEvent && e.domEvent.button === 0) {
+          // 左クリック（button 0）またはタッチ
+          if (e.domEvent && (e.domEvent.button === 0 || e.domEvent.type === 'touchstart')) {
             e.stop();
             e.domEvent.stopPropagation();
             e.domEvent.preventDefault();
-            isDragging = true;
-            isDraggingRef.current = true; // グローバルドラッグ状態を設定
-
-            // ドラッグ開始コールバック
-            if (onDragStart) {
-              onDragStart();
-            }
-
+            
+            touchStartTime = Date.now();
+            
             // ドラッグ開始位置を記録
             dragStartPositionRef.current = {
-              x: e.domEvent.clientX,
-              y: e.domEvent.clientY,
+              x: e.domEvent.clientX || (e.domEvent.touches && e.domEvent.touches[0].clientX),
+              y: e.domEvent.clientY || (e.domEvent.touches && e.domEvent.touches[0].clientY),
             };
 
-            // マーカーの色を変更してドラッグ中を示す
-            marker.setIcon({
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: isStart || isEnd ? 10 : 8, // ドラッグ中も小さく
-              fillColor: "#FF69B4",
-              fillOpacity: 1,
-              strokeColor: "#FFFFFF",
-              strokeWeight: 2,
-            });
+            // ロングタップ検出（500ms）
+            longTapTimer = setTimeout(() => {
+              // ロングタップでドラッグモード開始
+              dragModeActive = true;
+              isDragging = true;
+              isDraggingRef.current = true;
 
-            if (mapRef.current) {
-              mapRef.current.setOptions({ draggable: false });
+              // ドラッグ開始コールバック
+              if (onDragStart) {
+                onDragStart();
+              }
+
+              // マーカーの色を変更してドラッグモード中を示す
+              marker.setIcon({
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: isStart || isEnd ? 10 : 8,
+                fillColor: "#FF69B4",
+                fillOpacity: 1,
+                strokeColor: "#FFFFFF",
+                strokeWeight: 2,
+              });
+
+              if (mapRef.current) {
+                mapRef.current.setOptions({ draggable: false });
+              }
+
+              startDrag();
+            }, 500);
+          }
+        };
+
+        // マウスアップ/タッチエンドでロングタップタイマーをクリア
+        const handleMouseUp = (e: any) => {
+          if (longTapTimer) {
+            clearTimeout(longTapTimer);
+            longTapTimer = null;
+          }
+          
+          // ドラッグモードがアクティブでない場合のみクリック処理
+          if (!dragModeActive) {
+            const clickDuration = Date.now() - touchStartTime;
+            // 短いタップ（500ms未満）の場合のみクリック処理を継続
+            if (clickDuration < 500) {
+              // 通常のクリック処理（ダブルタップ検出用）
+              // この処理はclickイベントで行う
             }
-
-            startDrag();
+          } else {
+            // ドラッグモード終了
+            dragModeActive = false;
           }
         };
 
@@ -695,6 +727,11 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         
         marker.addListener("click", (e: google.maps.MapMouseEvent) => {
           if (!isEditMode && !isDemoMode) return;
+          
+          // ドラッグモード中はクリックを無視
+          if (dragModeActive || isDragging) {
+            return;
+          }
           
           const currentTime = Date.now();
           const timeSinceLastTap = currentTime - lastTapTime;
@@ -733,6 +770,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         });
 
         marker.addListener("mousedown", handleMouseDown);
+        marker.addListener("mouseup", handleMouseUp);
+        marker.addListener("touchend", handleMouseUp);
 
         // 右クリックで削除（編集モード・手動作成モードで有効）
         marker.addListener("rightclick", (e: google.maps.MapMouseEvent) => {
