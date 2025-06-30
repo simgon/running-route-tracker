@@ -369,10 +369,10 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         const marker = new google.maps.Marker({
           position: { lat: point.lat, lng: point.lng },
           map: mapRef.current!,
-          draggable: false, // 標準ドラッグを完全に無効化
-          clickable: true, // クリック可能
+          draggable: false, // 初期状態は無効
+          clickable: true,
           title: `${isStart ? "スタート" : isEnd ? "ゴール" : `ポイント ${index + 1}`}${
-            isEditMode ? " (ロングタップ: 移動, ダブルタップ: 削除)" : ""
+            isEditMode ? " (ロングタップ: 移動開始, ダブルタップ: 削除)" : ""
           }`,
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
@@ -392,8 +392,6 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           },
           optimized: false,
           zIndex: -1,
-          // デフォルトのドラッグ動作を抑制
-          crossOnDrag: false,
         });
 
         let isDragging = false;
@@ -401,12 +399,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         let touchStartTime = 0;
         let dragModeActive = false; // ドラッグモードの状態を管理
 
-        // グローバルイベントリスナーを使用
-        let mouseMoveListener: google.maps.MapsEventListener | null = null;
-        let mouseUpListener: google.maps.MapsEventListener | null = null;
-        let touchMoveListener: google.maps.MapsEventListener | null = null;
-        let touchEndListener: google.maps.MapsEventListener | null = null;
-        let documentMouseMoveHandler: ((e: MouseEvent) => void) | null = null;
+        // 簡素化: ネイティブドラッグイベントを使用するため、複雑なリスナー管理は不要
 
         const startDrag = () => {
           if (!mapRef.current) return;
@@ -447,13 +440,13 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               // デフォルト動作を防ぐ
               e.preventDefault();
               e.stopPropagation();
-              
+
               // マウス座標をマップ座標に変換
               const mapDiv = mapRef.current.getDiv();
               const rect = mapDiv.getBoundingClientRect();
               const x = e.clientX - rect.left;
               const y = e.clientY - rect.top;
-              
+
               // マップ内の場合のみ処理
               if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
                 const bounds = mapRef.current.getBounds();
@@ -462,10 +455,10 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                   const sw = bounds.getSouthWest();
                   const lat = sw.lat() + (ne.lat() - sw.lat()) * (1 - y / rect.height);
                   const lng = sw.lng() + (ne.lng() - sw.lng()) * (x / rect.width);
-                  
+
                   const newPos = new google.maps.LatLng(lat, lng);
                   marker.setPosition(newPos);
-                  
+
                   const currentOnPointDrag = (window as any).currentOnPointDrag;
                   if (currentOnPointDrag) {
                     currentOnPointDrag(index, lat, lng);
@@ -475,7 +468,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             }
           };
 
-          document.addEventListener('mousemove', documentMouseMoveHandler, { passive: false });
+          document.addEventListener("mousemove", documentMouseMoveHandler, { passive: false });
 
           // タッチエンドリスナー
           touchEndListener = mapRef.current.addListener(
@@ -534,7 +527,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                   mouseUpListener = null;
                 }
                 if (documentMouseMoveHandler) {
-                  document.removeEventListener('mousemove', documentMouseMoveHandler);
+                  document.removeEventListener("mousemove", documentMouseMoveHandler);
                   documentMouseMoveHandler = null;
                 }
                 if (touchMoveListener) {
@@ -546,7 +539,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                   touchEndListener = null;
                 }
                 if (documentMouseMoveHandler) {
-                  document.removeEventListener('mousemove', documentMouseMoveHandler);
+                  document.removeEventListener("mousemove", documentMouseMoveHandler);
                   documentMouseMoveHandler = null;
                 }
               }
@@ -618,7 +611,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                   mouseUpListener = null;
                 }
                 if (documentMouseMoveHandler) {
-                  document.removeEventListener('mousemove', documentMouseMoveHandler);
+                  document.removeEventListener("mousemove", documentMouseMoveHandler);
                   documentMouseMoveHandler = null;
                 }
               }
@@ -712,7 +705,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           if (!isEditMode && !isDemoMode) return;
 
           // 左クリック（button 0）またはタッチ
-          if (e.domEvent && (e.domEvent.button === 0 || e.domEvent.type === 'touchstart')) {
+          if (e.domEvent && (e.domEvent.button === 0 || e.domEvent.type === "touchstart")) {
             // イベントの伝播と デフォルト動作を完全に停止
             e.stop();
             if (e.domEvent) {
@@ -720,13 +713,13 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               e.domEvent.preventDefault();
               e.domEvent.stopImmediatePropagation();
             }
-            
+
             touchStartTime = Date.now();
-            
+
             // ドラッグ開始位置を記録
             const clientX = e.domEvent.touches ? e.domEvent.touches[0].clientX : e.domEvent.clientX;
             const clientY = e.domEvent.touches ? e.domEvent.touches[0].clientY : e.domEvent.clientY;
-            
+
             dragStartPositionRef.current = {
               x: clientX,
               y: clientY,
@@ -736,25 +729,27 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             globalMouseUpListener = (upEvent: MouseEvent) => {
               handleGlobalMouseUp(upEvent);
             };
-            
+
             globalTouchEndListener = (upEvent: TouchEvent) => {
               handleGlobalMouseUp(upEvent);
             };
 
-            document.addEventListener('mouseup', globalMouseUpListener);
-            document.addEventListener('touchend', globalTouchEndListener, { passive: false });
+            document.addEventListener("mouseup", globalMouseUpListener);
+            document.addEventListener("touchend", globalTouchEndListener, { passive: false });
 
             // ロングタップ検出（500ms）
             longTapTimer = setTimeout(() => {
               // ロングタップでドラッグモード開始
               dragModeActive = true;
-              isDragging = true;
               isDraggingRef.current = true;
 
               // ドラッグ開始コールバック
               if (onDragStart) {
                 onDragStart();
               }
+
+              // マーカーのドラッグを有効化
+              marker.setDraggable(true);
 
               // マーカーの色を変更してドラッグモード中を示す
               marker.setIcon({
@@ -766,11 +761,10 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                 strokeWeight: 2,
               });
 
+              // マップのドラッグを無効化
               if (mapRef.current) {
                 mapRef.current.setOptions({ draggable: false });
               }
-
-              startDrag();
             }, 500);
           }
         };
@@ -782,11 +776,11 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             clearTimeout(longTapTimer);
             longTapTimer = null;
           }
-          
+
           // ドラッグモードが有効だったが、まだドラッグを開始していない場合のみ終了処理
           if (dragModeActive && !isDragging) {
             dragModeActive = false;
-            
+
             // マーカーの色を元に戻す
             marker.setIcon({
               path: google.maps.SymbolPath.CIRCLE,
@@ -796,20 +790,20 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               strokeColor: "#FFFFFF",
               strokeWeight: 2,
             });
-            
+
             // 地図のドラッグを再有効化
             if (mapRef.current) {
               mapRef.current.setOptions({ draggable: true });
             }
           }
-          
+
           // グローバルリスナーをクリーンアップ
           if (globalMouseUpListener) {
-            document.removeEventListener('mouseup', globalMouseUpListener);
+            document.removeEventListener("mouseup", globalMouseUpListener);
             globalMouseUpListener = null;
           }
           if (globalTouchEndListener) {
-            document.removeEventListener('touchend', globalTouchEndListener);
+            document.removeEventListener("touchend", globalTouchEndListener);
             globalTouchEndListener = null;
           }
         };
@@ -830,18 +824,18 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         // ダブルタップで削除を実装
         let lastTapTime = 0;
         let tapCount = 0;
-        
+
         marker.addListener("click", (e: google.maps.MapMouseEvent) => {
           if (!isEditMode && !isDemoMode) return;
-          
+
           // ドラッグモード中はクリックを無視
           if (dragModeActive || isDragging) {
             return;
           }
-          
+
           const currentTime = Date.now();
           const timeSinceLastTap = currentTime - lastTapTime;
-          
+
           // 300ms以内の連続タップをダブルタップとして認識
           if (timeSinceLastTap < 300 && tapCount === 1) {
             // ダブルタップ検出
@@ -850,13 +844,13 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               e.domEvent.stopPropagation();
               e.domEvent.preventDefault();
             }
-            
+
             const currentOnPointDelete = (window as any).currentOnPointDelete;
             if (currentOnPointDelete) {
               console.log("Double tap detected - deleting pin", index);
               currentOnPointDelete(index);
             }
-            
+
             // カウンターリセット
             tapCount = 0;
             lastTapTime = 0;
@@ -864,7 +858,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             // 最初のタップまたは時間が空いたタップ
             tapCount = 1;
             lastTapTime = currentTime;
-            
+
             // 300ms後にタップカウンターをリセット（ダブルタップが発生しなかった場合）
             setTimeout(() => {
               if (tapCount === 1 && Date.now() - lastTapTime >= 300) {
@@ -875,18 +869,49 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           }
         });
 
+        // マーカーのネイティブドラッグイベント
+        marker.addListener("drag", (e: google.maps.MapMouseEvent) => {
+          if (e.latLng) {
+            const currentOnPointDrag = (window as any).currentOnPointDrag;
+            if (currentOnPointDrag) {
+              currentOnPointDrag(index, e.latLng.lat(), e.latLng.lng());
+            }
+          }
+        });
+
+        marker.addListener("dragend", () => {
+          // ドラッグ終了時の処理
+          dragModeActive = false;
+          isDraggingRef.current = false;
+          
+          // マーカーのドラッグを無効化
+          marker.setDraggable(false);
+          
+          // マーカーの色を元に戻す
+          marker.setIcon({
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: isStart || isEnd ? 8 : 6,
+            fillColor: isStart ? "#28a745" : isEnd ? "#dc3545" : "#FF8C00",
+            fillOpacity: 0.9,
+            strokeColor: "#FFFFFF",
+            strokeWeight: 2,
+          });
+          
+          // マップのドラッグを再有効化
+          if (mapRef.current) {
+            mapRef.current.setOptions({ draggable: true });
+          }
+          
+          // ドラッグ終了コールバック
+          if (onDragEnd) {
+            onDragEnd();
+          }
+        });
+
         marker.addListener("mousedown", handleMouseDown);
         marker.addListener("mouseup", handleMouseUp);
         marker.addListener("touchstart", handleMouseDown);
         marker.addListener("touchend", handleMouseUp);
-        
-        // マーカーのDOMエレメントが利用可能になったら直接イベントを追加
-        marker.addListener("dragstart", (e: any) => {
-          if (e.domEvent) {
-            e.domEvent.preventDefault();
-            e.domEvent.stopPropagation();
-          }
-        });
 
         // 右クリックで削除（編集モード・手動作成モードで有効）
         marker.addListener("rightclick", (e: google.maps.MapMouseEvent) => {
