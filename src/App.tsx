@@ -400,11 +400,15 @@ function App() {
         setIsEditMode(false);
       }
 
-      showToast("ルートが削除されました。", "success");
+      // オーバーレイのルート一覧を更新
+      setSavedRoutes(prevRoutes => prevRoutes.filter(route => route.id !== routeId));
 
-      // サイドバーでルート一覧を自動更新するため、
-      // 削除成功をサイドバーコンポーネントに通知する方法は
-      // RouteListSidebarコンポーネント内でuseEffectを使用
+      // サイドバーのルート一覧を更新
+      if (routeListRef.current) {
+        await routeListRef.current.refreshRoutes();
+      }
+
+      showToast("ルートが削除されました。", "success");
     } catch (error) {
       console.error("ルート削除エラー:", error);
       showToast("ルートの削除に失敗しました。もう一度お試しください。", "error");

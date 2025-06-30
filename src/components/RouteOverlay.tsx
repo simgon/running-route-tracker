@@ -22,6 +22,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
   showAllRoutes = false,
   onStartManualCreation,
 }) => {
+  const isMobile = window.innerWidth <= 768;
   const formatDistance = (meters: number) => {
     if (meters < 1000) {
       return `${meters.toFixed(0)}m`;
@@ -119,8 +120,8 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
           <div
             onClick={onStartManualCreation}
             style={{
-              minWidth: "200px",
-              maxWidth: "250px",
+              minWidth: isMobile ? "150px" : "200px",
+              maxWidth: isMobile ? "180px" : "250px",
               backgroundColor: "#e8f5e8",
               border: "2px dashed #28a745",
               borderRadius: "8px",
@@ -144,8 +145,8 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               e.currentTarget.style.transform = "translateY(0)";
             }}
           >
-            <div style={{ fontSize: "24px", marginBottom: "8px" }}>✏️</div>
-            <div style={{ fontSize: "14px" }}>新規ルート作成</div>
+            <div style={{ fontSize: isMobile ? "20px" : "24px", marginBottom: "8px" }}>✏️</div>
+            <div style={{ fontSize: isMobile ? "12px" : "14px" }}>新規ルート作成</div>
           </div>
         )}
 
@@ -157,8 +158,8 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               key={route.id}
               onClick={() => onSelectRoute(route)}
               style={{
-                minWidth: "200px",
-                maxWidth: "250px",
+                minWidth: isMobile ? "150px" : "200px",
+                maxWidth: isMobile ? "180px" : "250px",
                 backgroundColor: isSelected ? "#e3f2fd" : "#f8f9fa",
                 border: isSelected ? "2px solid #2196f3" : "1px solid #e9ecef",
                 borderRadius: "8px",
@@ -258,7 +259,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                 <h4
                   style={{
                     margin: "0 0 8px 0",
-                    fontSize: "14px",
+                    fontSize: isMobile ? "12px" : "14px",
                     fontWeight: "bold",
                     color: isSelected ? "#1976d2" : "#333",
                     lineHeight: "1.2",
@@ -272,7 +273,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                     display: "flex",
                     flexDirection: "column",
                     gap: "4px",
-                    fontSize: "12px",
+                    fontSize: isMobile ? "10px" : "12px",
                     color: "#666",
                   }}
                 >
