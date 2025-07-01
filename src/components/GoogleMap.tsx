@@ -455,54 +455,57 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             document.addEventListener("mousemove", globalMouseMoveListener);
             document.addEventListener("touchmove", globalTouchMoveListener, { passive: false });
 
-            // ロングタップ検出（500ms → ドラッグモード、1000ms → 削除）
+            // 即座にドラッグモード開始
+            dragModeActive = true;
+            isDraggingRef.current = true;
+
+            // ドラッグ開始コールバック
+            if (onDragStart) {
+              onDragStart();
+            }
+
+            // マーカーのドラッグを有効化
+            marker.setDraggable(true);
+
+            // マーカーの色を変更してドラッグモード中を示す
+            marker.setIcon({
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: isStart || isEnd ? 10 : 8,
+              fillColor: "#FF69B4",
+              fillOpacity: 1,
+              strokeColor: "#FFFFFF",
+              strokeWeight: 2,
+            });
+
+            // マップのドラッグを無効化
+            if (mapRef.current) {
+              mapRef.current.setOptions({ draggable: false });
+            }
+
+            // 即座に手動ドラッグを開始
+            isManuallyDragging = true;
+
+            // 1秒後（1000ms）で削除処理
             longTapTimer = setTimeout(() => {
-              // 500msでドラッグモード開始
-              dragModeActive = true;
-              isDraggingRef.current = true;
-
-              // ドラッグ開始コールバック
-              if (onDragStart) {
-                onDragStart();
+              // 1秒間ロングタップで削除
+              const currentOnPointDelete = (window as any).currentOnPointDelete;
+              if (currentOnPointDelete) {
+                console.log("1 second long tap detected - deleting pin", index);
+                currentOnPointDelete(index);
               }
-
-              // マーカーのドラッグを有効化
-              marker.setDraggable(true);
-
-              // マーカーの色を変更してドラッグモード中を示す
-              marker.setIcon({
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: isStart || isEnd ? 10 : 8,
-                fillColor: "#FF69B4",
-                fillOpacity: 1,
-                strokeColor: "#FFFFFF",
-                strokeWeight: 2,
-              });
-
-              // マップのドラッグを無効化
-              if (mapRef.current) {
-                mapRef.current.setOptions({ draggable: false });
-              }
-
-              // ロングタップ完了後、手動ドラッグを開始
-              isManuallyDragging = true;
-
-              // さらに500ms後（合計1000ms）で削除処理
-              longTapTimer = setTimeout(() => {
-                // 1秒間ロングタップで削除
-                const currentOnPointDelete = (window as any).currentOnPointDelete;
-                if (currentOnPointDelete) {
-                  console.log("1 second long tap detected - deleting pin", index);
-                  currentOnPointDelete(index);
-                }
-              }, 500); // 追加の500ms（合計1000ms）
-            }, 500);
+            }, 1000); // 1000ms
           }
         };
 
         // グローバルなマウス/タッチムーブ処理（ロングタップ後のドラッグ用）
         const handleGlobalMouseMove = (e: MouseEvent) => {
           if (dragModeActive && isManuallyDragging && mapRef.current) {
+            // 実際にドラッグが開始されたら削除タイマーをクリア
+            if (longTapTimer) {
+              clearTimeout(longTapTimer);
+              longTapTimer = null;
+            }
+
             // マウス座標をマップ座標に変換
             const mapDiv = mapRef.current.getDiv();
             const rect = mapDiv.getBoundingClientRect();
@@ -532,6 +535,12 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
         const handleGlobalTouchMove = (e: TouchEvent) => {
           if (dragModeActive && isManuallyDragging && mapRef.current && e.touches.length > 0) {
+            // 実際にドラッグが開始されたら削除タイマーをクリア
+            if (longTapTimer) {
+              clearTimeout(longTapTimer);
+              longTapTimer = null;
+            }
+
             const touch = e.touches[0];
             // マウス座標をマップ座標に変換
             const mapDiv = mapRef.current.getDiv();
