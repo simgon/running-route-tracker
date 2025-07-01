@@ -373,7 +373,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           draggable: false, // 初期状態は無効
           clickable: true,
           title: `${isStart ? "スタート" : isEnd ? "ゴール" : `ポイント ${index + 1}`}${
-            isEditMode ? " (ロングタップ: 移動開始, ダブルタップ: 削除)" : ""
+            isEditMode ? " (0.5秒: 移動開始, 1秒: 削除)" : ""
           }`,
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
@@ -455,9 +455,9 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             document.addEventListener("mousemove", globalMouseMoveListener);
             document.addEventListener("touchmove", globalTouchMoveListener, { passive: false });
 
-            // ロングタップ検出（500ms）
+            // ロングタップ検出（500ms → ドラッグモード、1000ms → 削除）
             longTapTimer = setTimeout(() => {
-              // ロングタップでドラッグモード開始
+              // 500msでドラッグモード開始
               dragModeActive = true;
               isDraggingRef.current = true;
 
@@ -486,6 +486,16 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
               // ロングタップ完了後、手動ドラッグを開始
               isManuallyDragging = true;
+
+              // さらに500ms後（合計1000ms）で削除処理
+              longTapTimer = setTimeout(() => {
+                // 1秒間ロングタップで削除
+                const currentOnPointDelete = (window as any).currentOnPointDelete;
+                if (currentOnPointDelete) {
+                  console.log("1 second long tap detected - deleting pin", index);
+                  currentOnPointDelete(index);
+                }
+              }, 500); // 追加の500ms（合計1000ms）
             }, 500);
           }
         };
@@ -620,51 +630,18 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           }
         };
 
-        // ダブルタップで削除を実装
-        let lastTapTime = 0;
-        let tapCount = 0;
-
+        // クリックイベント（ドラッグモード中は無視）
         marker.addListener("click", (e: google.maps.MapMouseEvent) => {
           if (!isEditMode && !isDemoMode) return;
 
           // ドラッグモード中はクリックを無視
           if (dragModeActive || isDraggingRef.current) {
-            return;
-          }
-
-          const currentTime = Date.now();
-          const timeSinceLastTap = currentTime - lastTapTime;
-
-          // 300ms以内の連続タップをダブルタップとして認識
-          if (timeSinceLastTap < 300 && tapCount === 1) {
-            // ダブルタップ検出
             e.stop();
             if (e.domEvent) {
               e.domEvent.stopPropagation();
               e.domEvent.preventDefault();
             }
-
-            const currentOnPointDelete = (window as any).currentOnPointDelete;
-            if (currentOnPointDelete) {
-              console.log("Double tap detected - deleting pin", index);
-              currentOnPointDelete(index);
-            }
-
-            // カウンターリセット
-            tapCount = 0;
-            lastTapTime = 0;
-          } else {
-            // 最初のタップまたは時間が空いたタップ
-            tapCount = 1;
-            lastTapTime = currentTime;
-
-            // 300ms後にタップカウンターをリセット（ダブルタップが発生しなかった場合）
-            setTimeout(() => {
-              if (tapCount === 1 && Date.now() - lastTapTime >= 300) {
-                tapCount = 0;
-                lastTapTime = 0;
-              }
-            }, 300);
+            return;
           }
         });
 
