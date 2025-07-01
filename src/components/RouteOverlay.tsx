@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { RunningRoute } from "../lib/supabase";
 import "./RouteOverlay.css";
 
@@ -25,6 +25,8 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
 }) => {
   const isMobile = window.innerWidth <= 768;
   const [isDragging, setIsDragging] = React.useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const routeRefsRef = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const formatDistance = (meters: number) => {
     if (meters < 1000) {
       return `${meters.toFixed(0)}m`;
@@ -43,6 +45,33 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
     }
     return `${minutes}:${(seconds % 60).toString().padStart(2, "0")}`;
   };
+
+  // 選択されたルートにスクロール
+  useEffect(() => {
+    if (selectedRouteId && scrollContainerRef.current && routeRefsRef.current[selectedRouteId]) {
+      const container = scrollContainerRef.current;
+      const selectedElement = routeRefsRef.current[selectedRouteId];
+      
+      if (selectedElement) {
+        const containerRect = container.getBoundingClientRect();
+        const elementRect = selectedElement.getBoundingClientRect();
+        
+        // 要素が表示範囲外の場合にスクロール
+        const isVisible = elementRect.left >= containerRect.left && 
+                         elementRect.right <= containerRect.right;
+        
+        if (!isVisible) {
+          const scrollLeft = selectedElement.offsetLeft - container.offsetLeft - 
+                           (container.clientWidth / 2) + (selectedElement.clientWidth / 2);
+          
+          container.scrollTo({
+            left: Math.max(0, scrollLeft),
+            behavior: 'smooth'
+          });
+        }
+      }
+    }
+  }, [selectedRouteId]);
 
   // ルートが0件でも新規作成ボタンを表示するため、常に表示
 
@@ -108,6 +137,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
       </div>
 
       <div
+        ref={scrollContainerRef}
         style={{
           display: "flex",
           gap: "12px",
@@ -122,12 +152,10 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
           const container = e.currentTarget;
           const startX = e.pageX - container.offsetLeft;
           const scrollLeft = container.scrollLeft;
-          let hasMoved = false;
           
           container.style.cursor = "grabbing";
           
           const handleMouseMove = (e: MouseEvent) => {
-            hasMoved = true;
             setIsDragging(true);
             const x = e.pageX - container.offsetLeft;
             const walk = (x - startX) * 2; // スクロール速度調整
@@ -196,6 +224,9 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
           return (
             <div
               key={route.id}
+              ref={(el) => {
+                routeRefsRef.current[route.id] = el;
+              }}
               onClick={(e) => {
                 if (isDragging) {
                   e.preventDefault();
