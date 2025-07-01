@@ -837,6 +837,7 @@ function App() {
                 allRoutes={allRoutes}
                 showAllRoutes={showAllRoutes}
                 selectedRouteId={selectedRouteId}
+                onRouteSelect={handleLoadRoute}
               />
             ) : (
               <div

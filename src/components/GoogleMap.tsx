@@ -22,6 +22,7 @@ interface GoogleMapProps {
   allRoutes?: RunningRoute[];
   showAllRoutes?: boolean;
   selectedRouteId?: string;
+  onRouteSelect?: (route: RunningRoute) => void;
 }
 
 const MapComponent: React.FC<GoogleMapProps> = ({
@@ -43,6 +44,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   allRoutes = [],
   showAllRoutes = false,
   selectedRouteId,
+  onRouteSelect,
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -816,15 +818,11 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             map: mapRef.current,
           });
 
-          // ルート名を表示するInfoWindow
-          const infoWindow = new google.maps.InfoWindow({
-            content: `<div style="font-weight: bold; color: ${routeColor}">${route.name}</div>`,
-            position: path[0], // スタート地点に表示
-          });
-
-          // ポリラインクリックでルート名を表示
+          // ポリラインクリックでルートを選択
           polyline.addListener("click", () => {
-            infoWindow.open(mapRef.current);
+            if (onRouteSelect) {
+              onRouteSelect(route);
+            }
           });
 
           allRoutesPolylinesRef.current.push(polyline);
@@ -986,6 +984,7 @@ interface GoogleMapWrapperProps {
   allRoutes?: RunningRoute[];
   showAllRoutes?: boolean;
   selectedRouteId?: string;
+  onRouteSelect?: (route: RunningRoute) => void;
 }
 
 const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
@@ -1008,6 +1007,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
   allRoutes,
   showAllRoutes,
   selectedRouteId,
+  onRouteSelect,
 }) => {
   const render = (status: any) => {
     switch (status) {
@@ -1036,6 +1036,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
             allRoutes={allRoutes}
             showAllRoutes={showAllRoutes}
             selectedRouteId={selectedRouteId}
+            onRouteSelect={onRouteSelect}
           />
         );
       default:
@@ -1064,6 +1065,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
         allRoutes={allRoutes}
         showAllRoutes={showAllRoutes}
         selectedRouteId={selectedRouteId}
+        onRouteSelect={onRouteSelect}
       />
     </Wrapper>
   );
