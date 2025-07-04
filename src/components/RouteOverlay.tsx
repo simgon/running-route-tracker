@@ -114,7 +114,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
         p: 2,
         boxShadow: 4,
         backdropFilter: "blur(10px)",
-        maxHeight: 200,
+        maxHeight: 180,
       }}
     >
       <Box
@@ -195,8 +195,8 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
         {onStartManualCreation && (
           <div
             style={{
-              minWidth: isMobile ? "150px" : "200px",
-              maxWidth: isMobile ? "180px" : "250px",
+              minWidth: isMobile ? "170px" : "200px",
+              maxWidth: isMobile ? "200px" : "250px",
               backgroundColor: isCopyMode ? "#fff3e0" : "#e8f5e8",
               border: isCopyMode ? "2px dashed #ff9800" : "2px dashed #28a745",
               borderRadius: "8px",
@@ -298,8 +298,8 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               onStartAIGeneration();
             }}
             style={{
-              minWidth: isMobile ? "150px" : "200px",
-              maxWidth: isMobile ? "180px" : "250px",
+              minWidth: isMobile ? "170px" : "200px",
+              maxWidth: isMobile ? "200px" : "250px",
               backgroundColor: "#e3f2fd",
               border: "2px dashed #2196f3",
               borderRadius: "8px",
@@ -359,8 +359,10 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                 }
               }}
               sx={{
-                minWidth: isMobile ? 150 : 200,
-                maxWidth: isMobile ? 180 : 250,
+                minWidth: isMobile ? 170 : 200,
+                maxWidth: isMobile ? 200 : 250,
+                minHeight: isMobile ? 100 : 120,
+                maxHeight: isMobile ? 120 : 140,
                 backgroundColor: isCopyMode 
                   ? "warning.light" 
                   : isSelected ? "grey.100" : "background.paper",
@@ -379,6 +381,10 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                 '&:hover': {
                   transform: !isSelected ? 'translateY(-1px)' : 'none',
                   boxShadow: isSelected ? 4 : 2,
+                  '& .action-buttons': {
+                    opacity: 1,
+                    visibility: 'visible',
+                  }
                 }
               }}
             >
@@ -402,12 +408,16 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
 
               {/* アクションボタン */}
               <Box
+                className="action-buttons"
                 sx={{
                   position: "absolute",
                   top: 8,
                   right: 8,
                   display: "flex",
                   gap: 0.5,
+                  opacity: 0,
+                  visibility: 'hidden',
+                  transition: 'opacity 0.2s ease, visibility 0.2s ease',
                 }}
               >
                 <Tooltip title="編集">
@@ -455,16 +465,30 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               </Box>
 
               {/* ルート情報 */}
-              <CardContent sx={{ pr: 6, pb: 1.5, '&:last-child': { pb: 1.5 } }}>
+              <CardContent sx={{ 
+                pr: 1.5, 
+                pt: 1, 
+                pb: 1, 
+                px: 1.5,
+                '&:last-child': { pb: 1 },
+                overflow: 'hidden',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between'
+              }}>
                 <Typography
                   variant="subtitle2"
                   component="h4"
                   fontWeight="bold"
                   color={isSelected ? "primary.main" : "text.primary"}
                   sx={{
-                    mb: 1,
-                    fontSize: isMobile ? "0.75rem" : "0.875rem",
-                    lineHeight: 1.2,
+                    mb: 0.5,
+                    fontSize: isMobile ? "0.7rem" : "0.8rem",
+                    lineHeight: 1.1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   {route.name}
@@ -474,8 +498,8 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                   sx={{
                     display: "flex",
                     flexDirection: "column",
-                    gap: 0.5,
-                    fontSize: isMobile ? "0.6rem" : "0.75rem",
+                    gap: 0.25,
+                    fontSize: isMobile ? "0.55rem" : "0.65rem",
                   }}
                 >
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
