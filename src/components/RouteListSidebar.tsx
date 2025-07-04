@@ -10,6 +10,12 @@ interface RouteListSidebarProps {
   selectedRouteId?: string;
   showAllRoutes?: boolean;
   onRoutesUpdate?: (routes: RunningRoute[]) => void;
+  editingRouteId?: string | null;
+  editingRouteName?: string;
+  onStartEditRouteName?: (route: RunningRoute) => void;
+  onCancelEditRouteName?: () => void;
+  onSaveRouteName?: (routeId: string) => void;
+  onEditingRouteNameChange?: (name: string) => void;
 }
 
 export interface RouteListSidebarRef {
@@ -26,6 +32,12 @@ const RouteListSidebar = forwardRef<RouteListSidebarRef, RouteListSidebarProps>(
       selectedRouteId,
       showAllRoutes = false,
       onRoutesUpdate,
+      editingRouteId,
+      editingRouteName,
+      onStartEditRouteName,
+      onCancelEditRouteName,
+      onSaveRouteName,
+      onEditingRouteNameChange,
     },
     ref
   ) => {
@@ -306,16 +318,74 @@ const RouteListSidebar = forwardRef<RouteListSidebarRef, RouteListSidebarProps>(
                       marginBottom: isMobile ? "4px" : "8px",
                     }}
                   >
-                    <h4
-                      style={{
-                        margin: "0 0 5px 0",
-                        color: "#007bff",
-                        fontSize: isMobile ? "0.9em" : "1em",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {route.name}
-                    </h4>
+                    {editingRouteId === route.id ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: "5px", marginBottom: "5px" }}>
+                        <input
+                          type="text"
+                          value={editingRouteName}
+                          onChange={(e) => onEditingRouteNameChange?.(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              onSaveRouteName?.(route.id);
+                            } else if (e.key === "Escape") {
+                              onCancelEditRouteName?.();
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            fontSize: isMobile ? "0.9em" : "1em",
+                            fontWeight: "bold",
+                            color: "#007bff",
+                            border: "1px solid #007bff",
+                            borderRadius: "3px",
+                            padding: "2px 5px",
+                            outline: "none",
+                          }}
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => onSaveRouteName?.(route.id)}
+                          style={{
+                            padding: "2px 6px",
+                            fontSize: "0.7em",
+                            border: "none",
+                            borderRadius: "3px",
+                            backgroundColor: "#28a745",
+                            color: "white",
+                            cursor: "pointer",
+                          }}
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={onCancelEditRouteName}
+                          style={{
+                            padding: "2px 6px",
+                            fontSize: "0.7em",
+                            border: "none",
+                            borderRadius: "3px",
+                            backgroundColor: "#dc3545",
+                            color: "white",
+                            cursor: "pointer",
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <h4
+                        style={{
+                          margin: "0 0 5px 0",
+                          color: "#007bff",
+                          fontSize: isMobile ? "0.9em" : "1em",
+                          fontWeight: "bold",
+                        }}
+                        onDoubleClick={() => onStartEditRouteName?.(route)}
+                        title="ダブルクリックで編集"
+                      >
+                        {route.name}
+                      </h4>
+                    )}
                     {!isMobile && (
                       <span
                         style={{

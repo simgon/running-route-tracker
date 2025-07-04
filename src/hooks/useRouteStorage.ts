@@ -7,6 +7,7 @@ export interface UseRouteStorageReturn {
   saveRoute: (name: string, description: string | undefined, routePoints: RoutePoint[], distance: number, duration: number) => Promise<RunningRoute>;
   updateRoute: (routeId: string, routePoints: RoutePoint[], distance: number, duration: number) => Promise<RunningRoute>;
   deleteRoute: (routeId: string) => Promise<void>;
+  updateRouteName: (routeId: string, name: string) => Promise<RunningRoute>;
   loadUserRoutes: () => Promise<RunningRoute[]>;
   isLoading: boolean;
   error: string | null;
@@ -64,13 +65,9 @@ export const useRouteStorage = (): UseRouteStorageReturn => {
     setError(null);
 
     try {
-      // ローカルストレージから匿名ユーザーIDを取得
+      // 認証済みユーザーの場合は認証情報を使用、匿名ユーザーの場合はlocalStorageから取得
       const anonymousId = localStorage.getItem('anonymous_user_id');
-      if (!anonymousId) {
-        return []; // まだルートを保存したことがない
-      }
-
-      const routes = await getUserRunningRoutes(anonymousId);
+      const routes = await getUserRunningRoutes(anonymousId || undefined);
       return routes;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'ルートの読み込みに失敗しました';
@@ -134,10 +131,27 @@ export const useRouteStorage = (): UseRouteStorageReturn => {
     }
   };
 
+  const updateRouteName = async (routeId: string, name: string): Promise<RunningRoute> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const updatedRoute = await updateRunningRoute(routeId, { name });
+      return updatedRoute;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'ルート名の更新に失敗しました';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     saveRoute,
     updateRoute,
     deleteRoute,
+    updateRouteName,
     loadUserRoutes,
     isLoading,
     error

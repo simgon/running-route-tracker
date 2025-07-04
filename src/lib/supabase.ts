@@ -24,14 +24,26 @@ export interface RunningRoute {
 
 // ランニングルートを保存する関数
 export const saveRunningRoute = async (route: Omit<RunningRoute, 'id' | 'created_at' | 'updated_at'>) => {
-  // 匿名ユーザーIDを生成
-  const anonymousId = generateAnonymousUserId();
+  // 認証済みユーザーか匿名ユーザーかを判定
+  const { data: { user } } = await supabase.auth.getUser();
   
-  const routeData = {
-    ...route,
-    user_id: null, // 匿名ユーザーはnull
-    anonymous_user_id: anonymousId
-  };
+  let routeData;
+  if (user) {
+    // 認証済みユーザー
+    routeData = {
+      ...route,
+      user_id: user.id,
+      anonymous_user_id: null
+    };
+  } else {
+    // 匿名ユーザー（既存の仕組み）
+    const anonymousId = generateAnonymousUserId();
+    routeData = {
+      ...route,
+      user_id: null,
+      anonymous_user_id: anonymousId
+    };
+  }
 
   const { data, error } = await supabase
     .from('running_routes')
@@ -64,12 +76,26 @@ const generateAnonymousUserId = (): string => {
 };
 
 // ユーザーのランニングルートを取得する関数
-export const getUserRunningRoutes = async (anonymousUserId: string) => {
-  const { data, error } = await supabase
+export const getUserRunningRoutes = async (anonymousUserId?: string) => {
+  // 認証済みユーザーか匿名ユーザーかを判定
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  let query = supabase
     .from('running_routes')
-    .select('*')
-    .eq('anonymous_user_id', anonymousUserId)
-    .order('created_at', { ascending: false });
+    .select('*');
+  
+  if (user) {
+    // 認証済みユーザーのルートを取得
+    query = query.eq('user_id', user.id);
+  } else if (anonymousUserId) {
+    // 匿名ユーザーのルートを取得
+    query = query.eq('anonymous_user_id', anonymousUserId);
+  } else {
+    // 匿名ユーザーでIDがない場合は空配列を返す
+    return [];
+  }
+  
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) {
     throw new Error(`Failed to fetch routes: ${error.message}`);
@@ -108,5 +134,47 @@ export const deleteRunningRoute = async (routeId: string) => {
 
   if (error) {
     throw new Error(`Failed to delete route: ${error.message}`);
+  }
+};
+
+// 匿名ユーザーのルートを認証済みユーザーに移行する関数
+export const migrateAnonymousRoutesToUser = async (userId: string, anonymousUserId: string) => {
+  try {
+    // 匿名ユーザーのルートを取得
+    const { data: anonymousRoutes, error: fetchError } = await supabase
+      .from('running_routes')
+      .select('*')
+      .eq('anonymous_user_id', anonymousUserId);
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch anonymous routes: ${fetchError.message}`);
+    }
+
+    if (!anonymousRoutes || anonymousRoutes.length === 0) {
+      return { migratedCount: 0 };
+    }
+
+    // 各ルートのuser_idを更新し、anonymous_user_idをnullに設定
+    const { data: updatedRoutes, error: updateError } = await supabase
+      .from('running_routes')
+      .update({
+        user_id: userId,
+        anonymous_user_id: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('anonymous_user_id', anonymousUserId)
+      .select();
+
+    if (updateError) {
+      throw new Error(`Failed to migrate routes: ${updateError.message}`);
+    }
+
+    return { 
+      migratedCount: updatedRoutes.length,
+      migratedRoutes: updatedRoutes
+    };
+  } catch (error) {
+    console.error('Migration error:', error);
+    throw error;
   }
 };

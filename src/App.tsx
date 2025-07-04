@@ -1,8 +1,14 @@
 import React, { useEffect, useState, useRef } from "react";
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 import GoogleMap from "./components/GoogleMap";
 import SaveRouteModal from "./components/SaveRouteModal";
 import RouteListSidebar, { RouteListSidebarRef } from "./components/RouteListSidebar";
 import RouteOverlay from "./components/RouteOverlay";
+import AIRouteOptimizer from "./components/AIRouteOptimizer";
+import LoginModal from "./components/LoginModal";
+import UserProfile from "./components/UserProfile";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { useGeolocation } from "./hooks/useGeolocation";
 import { useRunningRoute } from "./hooks/useRunningRoute";
 import { useRouteStorage } from "./hooks/useRouteStorage";
@@ -10,7 +16,24 @@ import { RunningRoute } from "./lib/supabase";
 import { RoutePoint } from "./hooks/useRunningRoute";
 import "./App.css";
 
-function App() {
+// Material-UI テーマ設定
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#1976d2',
+    },
+    secondary: {
+      main: '#dc004e',
+    },
+  },
+  typography: {
+    fontFamily: 'Roboto, Arial, sans-serif',
+  },
+});
+
+const AppContent: React.FC = () => {
+  const { user, loading: authLoading } = useAuth();
+  const [previousUser, setPreviousUser] = useState<typeof user>(null);
   const { position, error, loading, startTracking, stopTracking, isTracking } = useGeolocation();
   const { routeState, startRecording, pauseRecording, resumeRecording, clearRoute, addPoint } =
     useRunningRoute();
@@ -18,6 +41,7 @@ function App() {
     saveRoute,
     updateRoute,
     deleteRoute,
+    updateRouteName,
     loadUserRoutes,
     isLoading: isSaving,
   } = useRouteStorage();
@@ -37,6 +61,11 @@ function App() {
     message: string;
     type: "success" | "error";
   } | null>(null);
+  const [showAIOptimizer, setShowAIOptimizer] = useState(false);
+  const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
+  const [editingRouteName, setEditingRouteName] = useState("");
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const mapRef = useRef<google.maps.Map | null>(null);
 
   // デフォルトの位置（東京駅）
   const defaultCenter = {
@@ -72,6 +101,29 @@ function App() {
     setTimeout(() => {
       setToastMessage(null);
     }, 3000); // 3秒後に非表示
+  };
+
+  // マップをルートに合わせてフィット
+  const fitMapToRoute = (routePoints: RoutePoint[]) => {
+    if (!mapRef.current || routePoints.length === 0) return;
+
+    const bounds = new google.maps.LatLngBounds();
+    routePoints.forEach(point => {
+      bounds.extend(new google.maps.LatLng(point.lat, point.lng));
+    });
+
+    // 適切な余白を持ってフィット
+    mapRef.current.fitBounds(bounds, {
+      top: 50,
+      right: 50,
+      bottom: 50,
+      left: 50,
+    });
+  };
+
+  // マップの準備完了コールバック
+  const handleMapReady = (map: google.maps.Map) => {
+    mapRef.current = map;
   };
 
   // GPS位置が更新されたらルートに追加（手動モードでない場合）
@@ -146,6 +198,57 @@ function App() {
     return `${paceMinutes}:${paceSeconds.toString().padStart(2, "0")}`;
   };
 
+  // 末尾のピンを削除する機能
+  const handleRemoveLastPin = () => {
+    if (isEditMode) {
+      // 編集モード：editableRouteから末尾を削除
+      if (editableRoute.length > 0) {
+        setEditableRoute(prev => prev.slice(0, -1));
+      }
+    } else if (isManualMode) {
+      // 手動モード：editableRouteから末尾を削除
+      if (editableRoute.length > 0) {
+        setEditableRoute(prev => prev.slice(0, -1));
+      }
+    }
+  };
+
+  // ルート名編集開始
+  const handleStartEditRouteName = (route: RunningRoute) => {
+    setEditingRouteId(route.id);
+    setEditingRouteName(route.name);
+  };
+
+  // ルート名編集キャンセル
+  const handleCancelEditRouteName = () => {
+    setEditingRouteId(null);
+    setEditingRouteName("");
+  };
+
+  // ルート名保存
+  const handleSaveRouteName = async (routeId: string) => {
+    if (!editingRouteName.trim()) {
+      showToast("ルート名を入力してください", "error");
+      return;
+    }
+
+    try {
+      await updateRouteName(routeId, editingRouteName.trim());
+      
+      // ルート一覧を更新
+      const updatedRoutes = await loadUserRoutes();
+      setSavedRoutes(updatedRoutes);
+      setAllRoutes(updatedRoutes);
+      
+      setEditingRouteId(null);
+      setEditingRouteName("");
+      showToast("ルート名を更新しました", "success");
+    } catch (error) {
+      console.error("ルート名の更新に失敗しました:", error);
+      showToast("ルート名の更新に失敗しました", "error");
+    }
+  };
+
   // ルート保存処理
   const handleSaveRoute = async (name: string, description?: string) => {
     try {
@@ -213,9 +316,16 @@ function App() {
       accuracy: route.elevation_data?.[index] || 5,
     }));
 
+    // 既に選択されているルートの場合は、マップビューを移動
+    if (selectedRouteId === route.id) {
+      fitMapToRoute(routePoints);
+      return;
+    }
+
     setSelectedRouteId(route.id); // 選択されたルートIDを設定
     clearRoute(); // 現在の記録をクリア
     setIsEditMode(false); // 編集モード無効
+    setIsManualMode(false); // 新規手動作成モードもキャンセル
 
     // 選択されたルートデータは常に保持（編集のため）
     setLoadedRoute(routePoints);
@@ -228,6 +338,7 @@ function App() {
     const newShowAllRoutes = !showAllRoutes;
     setShowAllRoutes(newShowAllRoutes);
     setIsEditMode(false);
+    setIsManualMode(false); // 新規手動作成モードもキャンセル
     clearRoute();
 
     // 選択されたルートのデータは常に保持（編集のため）
@@ -238,6 +349,34 @@ function App() {
   const handleRoutesUpdate = (routes: RunningRoute[]) => {
     setSavedRoutes(routes);
   };
+
+  // ユーザー変更を監視（ログイン時のルート移行検知）
+  useEffect(() => {
+    if (user && !previousUser) {
+      // 新規ログイン時
+      const checkForMigratedRoutes = async () => {
+        try {
+          // 少し待ってからルート一覧を再読み込み（移行処理完了を待つ）
+          setTimeout(async () => {
+            const routes = await loadUserRoutes();
+            setSavedRoutes(routes);
+            setAllRoutes(routes);
+            
+            // 移行されたルートがある場合の通知
+            if (routes.length > 0) {
+              showToast(`${routes.length}個のルートを引き継ぎました！`, 'success');
+            }
+          }, 1000);
+        } catch (error) {
+          console.error("ルート一覧の取得に失敗しました:", error);
+        }
+      };
+      
+      checkForMigratedRoutes();
+    }
+    
+    setPreviousUser(user);
+  }, [user, previousUser, loadUserRoutes]);
 
   // 初期ルート読み込み
   useEffect(() => {
@@ -266,6 +405,48 @@ function App() {
     // 手動作成モードで記録開始
     setIsManualMode(true);
     startRecording();
+  };
+
+  // AIルート処理
+  const handleAIGeneratedRoute = (route: RoutePoint[]) => {
+    // 現在の状態をクリア
+    clearRoute();
+    setIsEditMode(false);
+    setShowAllRoutes(false);
+    setSelectedRouteId(undefined);
+    setLoadedRoute([]);
+
+    // AIで生成されたルートを編集可能な状態で設定
+    setEditableRoute(route);
+    setIsManualMode(true); // 手動モードとして扱い、編集・保存可能にする
+    startRecording(); // 記録状態にして保存ボタンを表示
+
+    showToast("AIルートが生成されました！必要に応じて編集して保存してください。", "success");
+  };
+
+  // ルートコピー処理
+  const handleRouteCopy = (route: RunningRoute) => {
+    // GeoJSON LineStringをRoutePointに変換
+    const routePoints: RoutePoint[] = route.route_data.coordinates.map((coord, index) => ({
+      lat: coord[1],
+      lng: coord[0],
+      timestamp: Date.now() + index * 1000, // 仮のタイムスタンプ
+      accuracy: route.elevation_data?.[index] || 5,
+    }));
+
+    // 現在の状態をクリア
+    clearRoute();
+    setIsEditMode(false);
+    setShowAllRoutes(false);
+    setSelectedRouteId(undefined);
+    setLoadedRoute([]);
+
+    // コピーしたルートを編集可能な状態で設定
+    setEditableRoute(routePoints);
+    setIsManualMode(true); // 手動モードとして扱い、編集・保存可能にする
+    startRecording(); // 記録状態にして保存ボタンを表示
+
+    showToast(`「${route.name}」をコピーしました！編集して保存してください。`, "success");
   };
 
   // 編集モード開始
@@ -521,6 +702,26 @@ function App() {
     return Math.sqrt(dx * dx + dy * dy);
   };
 
+  // 認証ローディング中
+  if (authLoading) {
+    return (
+      <div
+        style={{
+          height: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#f8f9fa",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "24px", marginBottom: "16px" }}>🏃‍♂️</div>
+          <div style={{ fontSize: "18px", color: "#6c757d" }}>読み込み中...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <header className="App-header" style={{ position: "relative" }}>
@@ -557,8 +758,34 @@ function App() {
           {isSidebarCollapsed ? "☰" : "✕"}
         </button>
 
-        <h1 style={{ margin: "5px 0", fontSize: "1.5em" }}>Running Route Tracker</h1>
-        <p style={{ margin: "5px 0", fontSize: "0.9em" }}>ランニングルートを記録・共有しよう</p>
+        <div style={{ flex: 1 }}>
+          <h1 style={{ margin: "5px 0", fontSize: "1.5em" }}>Running Route Tracker</h1>
+          <p style={{ margin: "5px 0", fontSize: "0.9em" }}>ランニングルートを記録・共有しよう</p>
+        </div>
+        
+        {/* ユーザープロフィール/ログインボタン（右上に配置） */}
+        <div style={{ position: "absolute", top: "10px", right: "10px" }}>
+          {user ? (
+            <UserProfile />
+          ) : (
+            <button
+              onClick={() => setShowLoginModal(true)}
+              style={{
+                padding: "8px 16px",
+                backgroundColor: "#007bff",
+                color: "white",
+                border: "none",
+                borderRadius: "20px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "bold",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              }}
+            >
+              🔐 ログイン
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="app-main">
@@ -574,6 +801,12 @@ function App() {
               selectedRouteId={selectedRouteId}
               showAllRoutes={showAllRoutes}
               onRoutesUpdate={handleRoutesUpdate}
+              editingRouteId={editingRouteId}
+              editingRouteName={editingRouteName}
+              onStartEditRouteName={handleStartEditRouteName}
+              onCancelEditRouteName={handleCancelEditRouteName}
+              onSaveRouteName={handleSaveRouteName}
+              onEditingRouteNameChange={setEditingRouteName}
             />
           )}
         </div>
@@ -602,6 +835,13 @@ function App() {
                   </button>
                   <button onClick={stopEditMode} style={getButtonStyle("108, 117, 125")}>
                     ❌ キャンセル
+                  </button>
+                  <button 
+                    onClick={handleRemoveLastPin} 
+                    style={getButtonStyle("255, 193, 7")}
+                    disabled={editableRoute.length === 0}
+                  >
+                    🗑️ 末尾削除
                   </button>
                 </>
               )}
@@ -650,6 +890,13 @@ function App() {
                     style={getButtonStyle("108, 117, 125")}
                   >
                     ❌ キャンセル
+                  </button>
+                  <button 
+                    onClick={handleRemoveLastPin} 
+                    style={getButtonStyle("255, 193, 7")}
+                    disabled={editableRoute.length === 0}
+                  >
+                    🗑️ 末尾削除
                   </button>
                 </>
               ) : (
@@ -813,6 +1060,7 @@ function App() {
                 center={mapCenter}
                 zoom={15}
                 style={{ height: "100%", width: "100%" }}
+                onMapReady={handleMapReady}
                 userPosition={userPosition}
                 routePoints={
                   isEditMode
@@ -864,6 +1112,8 @@ function App() {
               onToggleAllRoutes={handleToggleAllRoutes}
               showAllRoutes={showAllRoutes}
               onStartManualCreation={handleStartManualCreation}
+              onStartAIGeneration={() => setShowAIOptimizer(true)}
+              onStartRouteCopy={handleRouteCopy}
             />
           </div>
         </div>
@@ -906,8 +1156,34 @@ function App() {
         duration={routeState.duration}
         isLoading={isSaving}
       />
+
+      {/* AIルート最適化モーダル */}
+      <AIRouteOptimizer
+        isOpen={showAIOptimizer}
+        onClose={() => setShowAIOptimizer(false)}
+        onGenerateRoute={handleAIGeneratedRoute}
+        currentPosition={userPosition}
+      />
+
+      {/* ログインモーダル */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+      />
     </div>
   );
-}
+};
+
+// AuthProviderでラップしたメインのAppコンポーネント
+const App: React.FC = () => {
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ThemeProvider>
+  );
+};
 
 export default App;

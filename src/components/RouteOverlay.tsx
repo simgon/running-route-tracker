@@ -1,6 +1,26 @@
 import React, { useEffect, useRef } from "react";
+import {
+  Box,
+  Typography,
+  Button,
+  Card,
+  CardContent,
+  IconButton,
+  Chip,
+  Tooltip
+} from '@mui/material';
+import {
+  FolderOpen as FolderIcon,
+  Visibility as ViewAllIcon,
+  VisibilityOff,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Add as AddIcon,
+  SmartToy as AIIcon,
+  ContentCopy as CopyIcon,
+  Create as CreateIcon
+} from '@mui/icons-material';
 import { RunningRoute } from "../lib/supabase";
-import "./RouteOverlay.css";
 
 interface RouteOverlayProps {
   routes: RunningRoute[];
@@ -11,6 +31,8 @@ interface RouteOverlayProps {
   onToggleAllRoutes?: (routes: RunningRoute[]) => void;
   showAllRoutes?: boolean;
   onStartManualCreation?: () => void;
+  onStartAIGeneration?: () => void;
+  onStartRouteCopy?: (route: RunningRoute) => void;
 }
 
 const RouteOverlay: React.FC<RouteOverlayProps> = ({
@@ -22,9 +44,12 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
   onToggleAllRoutes,
   showAllRoutes = false,
   onStartManualCreation,
+  onStartAIGeneration,
+  onStartRouteCopy,
 }) => {
   const isMobile = window.innerWidth <= 768;
   const [isDragging, setIsDragging] = React.useState(false);
+  const [isCopyMode, setIsCopyMode] = React.useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const routeRefsRef = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const formatDistance = (meters: number) => {
@@ -76,73 +101,62 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
   // ルートが0件でも新規作成ボタンを表示するため、常に表示
 
   return (
-    <div
-      style={{
+    <Box
+      sx={{
         position: "absolute",
-        bottom: "20px",
+        bottom: 20,
         left: "50%",
         transform: "translateX(-50%)",
         width: "90%",
         zIndex: 1000,
-        backgroundColor: "rgba(255, 255, 255, 0.5)",
-        borderRadius: "12px",
-        padding: "16px",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-        backdropFilter: "blur(3px)",
-        maxHeight: "200px",
+        backgroundColor: "rgba(255, 255, 255, 0.3)",
+        borderRadius: 3,
+        p: 2,
+        boxShadow: 4,
+        backdropFilter: "blur(10px)",
+        maxHeight: 200,
       }}
     >
-      <div
-        style={{
-          fontSize: "14px",
-          fontWeight: "bold",
-          color: "#333",
-          marginBottom: "12px",
+      <Box
+        sx={{
           display: "flex",
           alignItems: "center",
-          gap: "12px",
+          gap: 1.5,
+          mb: 1.5,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          📂 保存済みルート ({routes.length}個)
-        </div>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <FolderIcon color="primary" />
+          <Typography variant="body1" fontWeight="bold" color="text.primary">
+            保存済みルート ({routes.length}個)
+          </Typography>
+        </Box>
 
-        {/* 全ルート表示ボタン */}
         {routes.length > 1 && onToggleAllRoutes && (
-          <button
+          <Button
+            variant={showAllRoutes ? "contained" : "outlined"}
+            color={showAllRoutes ? "error" : "success"}
+            size="small"
+            startIcon={showAllRoutes ? <VisibilityOff /> : <ViewAllIcon />}
             onClick={() => onToggleAllRoutes(routes)}
-            style={{
-              padding: "6px 12px",
-              backgroundColor: showAllRoutes ? "#dc3545" : "#28a745",
-              color: "white",
-              border: "none",
-              borderRadius: "5px",
-              cursor: "pointer",
-              fontSize: "12px",
+            sx={{
+              textTransform: "none",
               fontWeight: "bold",
-              transition: "background-color 0.2s",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+              fontSize: "0.75rem",
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = showAllRoutes ? "#c82333" : "#218838";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = showAllRoutes ? "#dc3545" : "#28a745";
-            }}
-            title={showAllRoutes ? "個別表示に戻る" : "全ルートを地図に表示"}
           >
-            {showAllRoutes ? "🔍 個別表示" : "🗺️ 全表示"}
-          </button>
+            {showAllRoutes ? "個別表示" : "全表示"}
+          </Button>
         )}
-      </div>
+      </Box>
 
-      <div
+      <Box
         ref={scrollContainerRef}
-        style={{
+        sx={{
           display: "flex",
-          gap: "12px",
+          gap: 1.5,
           overflowX: "auto",
-          paddingBottom: "8px",
+          pb: 1,
           scrollbarWidth: "none", // Firefox
           msOverflowStyle: "none", // IE/Edge
           cursor: "grab",
@@ -177,21 +191,14 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
           document.addEventListener("mouseup", handleMouseUp);
         }}
       >
-        {/* 新規ルート作成ボタン */}
+        {/* 新規ルート作成/コピーボタン */}
         {onStartManualCreation && (
           <div
-            onClick={(e) => {
-              if (isDragging) {
-                e.preventDefault();
-                return;
-              }
-              onStartManualCreation();
-            }}
             style={{
               minWidth: isMobile ? "150px" : "200px",
               maxWidth: isMobile ? "180px" : "250px",
-              backgroundColor: "#e8f5e8",
-              border: "2px dashed #28a745",
+              backgroundColor: isCopyMode ? "#fff3e0" : "#e8f5e8",
+              border: isCopyMode ? "2px dashed #ff9800" : "2px dashed #28a745",
               borderRadius: "8px",
               padding: "12px",
               cursor: "pointer",
@@ -201,20 +208,127 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               alignItems: "center",
               justifyContent: "center",
               textAlign: "center",
-              color: "#28a745",
+              color: isCopyMode ? "#ff9800" : "#28a745",
               fontWeight: "bold",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              MozUserSelect: "none",
+              msUserSelect: "none",
+              position: "relative",
+            }}
+          >
+            {/* 切り替えボタン */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isDragging) return;
+                setIsCopyMode(!isCopyMode);
+              }}
+              style={{
+                position: "absolute",
+                top: "4px",
+                right: "4px",
+                width: "20px",
+                height: "20px",
+                borderRadius: "50%",
+                border: "1px solid",
+                borderColor: isCopyMode ? "#ff9800" : "#28a745",
+                backgroundColor: "white",
+                color: isCopyMode ? "#ff9800" : "#28a745",
+                cursor: "pointer",
+                fontSize: "10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.2s",
+              }}
+              title={isCopyMode ? "手動作成モードに切り替え" : "コピーモードに切り替え"}
+            >
+              {isCopyMode ? "✏️" : "📋"}
+            </button>
+
+            {/* メインボタンエリア */}
+            <div
+              onClick={(e) => {
+                if (isDragging) {
+                  e.preventDefault();
+                  return;
+                }
+                if (isCopyMode) {
+                  // コピーモード時は説明文を表示
+                  alert("コピーしたいルートをクリックしてください");
+                } else {
+                  onStartManualCreation();
+                }
+              }}
+              style={{ width: "100%", height: "100%" }}
+              onMouseEnter={(e) => {
+                const parent = e.currentTarget.parentElement;
+                if (parent) {
+                  parent.style.backgroundColor = isCopyMode ? "#ffe0b2" : "#d4edda";
+                  parent.style.transform = "translateY(-1px)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                const parent = e.currentTarget.parentElement;
+                if (parent) {
+                  parent.style.backgroundColor = isCopyMode ? "#fff3e0" : "#e8f5e8";
+                  parent.style.transform = "translateY(0)";
+                }
+              }}
+            >
+              <div style={{ fontSize: isMobile ? "20px" : "24px", marginBottom: "8px" }}>
+                {isCopyMode ? "📋" : "✏️"}
+              </div>
+              <div style={{ fontSize: isMobile ? "11px" : "13px", lineHeight: "1.2" }}>
+                {isCopyMode ? "ルートコピー\n(ルートを選択)" : "新規ルート作成"}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* AIルート生成ボタン */}
+        {onStartAIGeneration && (
+          <div
+            onClick={(e) => {
+              if (isDragging) {
+                e.preventDefault();
+                return;
+              }
+              onStartAIGeneration();
+            }}
+            style={{
+              minWidth: isMobile ? "150px" : "200px",
+              maxWidth: isMobile ? "180px" : "250px",
+              backgroundColor: "#e3f2fd",
+              border: "2px dashed #2196f3",
+              borderRadius: "8px",
+              padding: "12px",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              color: "#2196f3",
+              fontWeight: "bold",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              MozUserSelect: "none",
+              msUserSelect: "none",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#d4edda";
+              e.currentTarget.style.backgroundColor = "#bbdefb";
               e.currentTarget.style.transform = "translateY(-1px)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#e8f5e8";
+              e.currentTarget.style.backgroundColor = "#e3f2fd";
               e.currentTarget.style.transform = "translateY(0)";
             }}
           >
-            <div style={{ fontSize: isMobile ? "20px" : "24px", marginBottom: "8px" }}>✏️</div>
-            <div style={{ fontSize: isMobile ? "12px" : "14px" }}>新規ルート作成</div>
+            <div style={{ fontSize: isMobile ? "20px" : "24px", marginBottom: "8px" }}>🤖</div>
+            <div style={{ fontSize: isMobile ? "12px" : "14px" }}>AIルート生成</div>
           </div>
         )}
 
@@ -222,7 +336,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
           const isSelected = selectedRouteId === route.id;
 
           return (
-            <div
+            <Card
               key={route.id}
               ref={(el) => {
                 routeRefsRef.current[route.id] = el;
@@ -232,147 +346,163 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                   e.preventDefault();
                   return;
                 }
-                onSelectRoute(route);
+                
+                if (isCopyMode) {
+                  // コピーモード：ルートをコピーして新規作成
+                  if (onStartRouteCopy) {
+                    onStartRouteCopy(route);
+                    setIsCopyMode(false); // コピー後はモードを解除
+                  }
+                } else {
+                  // 通常モード：ルート選択
+                  onSelectRoute(route);
+                }
               }}
-              style={{
-                minWidth: isMobile ? "150px" : "200px",
-                maxWidth: isMobile ? "180px" : "250px",
-                backgroundColor: isSelected ? "#e3f2fd" : "#f8f9fa",
-                border: isSelected ? "2px solid #2196f3" : "1px solid #e9ecef",
-                borderRadius: "8px",
-                padding: "12px",
+              sx={{
+                minWidth: isMobile ? 150 : 200,
+                maxWidth: isMobile ? 180 : 250,
+                backgroundColor: isCopyMode 
+                  ? "warning.light" 
+                  : isSelected ? "grey.100" : "background.paper",
+                border: isCopyMode 
+                  ? 2 
+                  : isSelected ? 2 : 1,
+                borderStyle: isCopyMode ? "dashed" : "solid",
+                borderColor: isCopyMode 
+                  ? "warning.main" 
+                  : isSelected ? "primary.main" : "divider",
                 cursor: "pointer",
                 transition: "all 0.2s ease",
                 position: "relative",
-                boxShadow: isSelected
-                  ? "0 2px 8px rgba(33,150,243,0.3)"
-                  : "0 1px 3px rgba(0,0,0,0.1)",
-              }}
-              onMouseEnter={(e) => {
-                if (!isSelected) {
-                  e.currentTarget.style.backgroundColor = "#f0f0f0";
-                  e.currentTarget.style.transform = "translateY(-1px)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isSelected) {
-                  e.currentTarget.style.backgroundColor = "#f8f9fa";
-                  e.currentTarget.style.transform = "translateY(0)";
+                userSelect: "none",
+                opacity: isCopyMode ? 0.9 : 1,
+                '&:hover': {
+                  transform: !isSelected ? 'translateY(-1px)' : 'none',
+                  boxShadow: isSelected ? 4 : 2,
                 }
               }}
             >
+              {/* コピーモードインジケーター */}
+              {isCopyMode && (
+                <Chip
+                  icon={<CopyIcon />}
+                  size="small"
+                  color="warning"
+                  sx={{
+                    position: "absolute",
+                    top: 8,
+                    left: 8,
+                    fontSize: "0.6rem",
+                    '& .MuiChip-icon': {
+                      fontSize: '0.8rem'
+                    }
+                  }}
+                />
+              )}
+
               {/* アクションボタン */}
-              <div
-                style={{
+              <Box
+                sx={{
                   position: "absolute",
-                  top: "8px",
-                  right: "8px",
+                  top: 8,
+                  right: 8,
                   display: "flex",
-                  gap: "4px",
+                  gap: 0.5,
                 }}
               >
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEditRoute(route);
-                  }}
-                  style={{
-                    width: "20px",
-                    height: "20px",
-                    borderRadius: "50%",
-                    border: "none",
-                    backgroundColor: "#ff9800",
-                    color: "white",
-                    cursor: "pointer",
-                    fontSize: "10px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "background-color 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#f57c00";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#ff9800";
-                  }}
-                  title="編集"
-                >
-                  ✏️
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteRoute(route.id, route.name);
-                  }}
-                  style={{
-                    width: "20px",
-                    height: "20px",
-                    borderRadius: "50%",
-                    border: "none",
-                    backgroundColor: "#f44336",
-                    color: "white",
-                    cursor: "pointer",
-                    fontSize: "10px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "background-color 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#d32f2f";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#f44336";
-                  }}
-                  title="削除"
-                >
-                  ×
-                </button>
-              </div>
+                <Tooltip title="編集">
+                  <IconButton
+                    size="small"
+                    color="warning"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditRoute(route);
+                    }}
+                    sx={{
+                      width: 24,
+                      height: 24,
+                      backgroundColor: "warning.main",
+                      color: "white",
+                      '&:hover': {
+                        backgroundColor: "warning.dark",
+                      }
+                    }}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="削除">
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteRoute(route.id, route.name);
+                    }}
+                    sx={{
+                      width: 24,
+                      height: 24,
+                      backgroundColor: "error.main",
+                      color: "white",
+                      '&:hover': {
+                        backgroundColor: "error.dark",
+                      }
+                    }}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
 
               {/* ルート情報 */}
-              <div style={{ paddingRight: "50px" }}>
-                <h4
-                  style={{
-                    margin: "0 0 8px 0",
-                    fontSize: isMobile ? "12px" : "14px",
-                    fontWeight: "bold",
-                    color: isSelected ? "#1976d2" : "#333",
-                    lineHeight: "1.2",
+              <CardContent sx={{ pr: 6, pb: 1.5, '&:last-child': { pb: 1.5 } }}>
+                <Typography
+                  variant="subtitle2"
+                  component="h4"
+                  fontWeight="bold"
+                  color={isSelected ? "primary.main" : "text.primary"}
+                  sx={{
+                    mb: 1,
+                    fontSize: isMobile ? "0.75rem" : "0.875rem",
+                    lineHeight: 1.2,
                   }}
                 >
                   {route.name}
-                </h4>
+                </Typography>
 
-                <div
-                  style={{
+                <Box
+                  sx={{
                     display: "flex",
                     flexDirection: "column",
-                    gap: "4px",
-                    fontSize: isMobile ? "10px" : "12px",
-                    color: "#666",
+                    gap: 0.5,
+                    fontSize: isMobile ? "0.6rem" : "0.75rem",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    <span>📏</span>
-                    <span>{formatDistance(route.distance)}</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    <span>⏱️</span>
-                    <span>{formatDuration(route.duration || 0)}</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    <span>📍</span>
-                    <span>{route.route_data.coordinates?.length || 0}ポイント</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Typography component="span">📏</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {formatDistance(route.distance)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Typography component="span">⏱️</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {formatDuration(route.duration || 0)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Typography component="span">📍</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {route.route_data.coordinates?.length || 0}ポイント
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
           );
         })}
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 };
 

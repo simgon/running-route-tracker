@@ -1,4 +1,23 @@
 import React, { useState } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  Typography,
+  Box,
+  Alert,
+  Paper,
+  Divider,
+  CircularProgress
+} from '@mui/material';
+import {
+  Save as SaveIcon,
+  DirectionsRun as RunIcon,
+  Schedule as TimeIcon
+} from '@mui/icons-material';
 
 interface SaveRouteModalProps {
   isOpen: boolean;
@@ -68,143 +87,115 @@ const SaveRouteModal: React.FC<SaveRouteModalProps> = ({
     onClose();
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
+    <Dialog
+      open={isOpen}
+      onClose={handleClose}
+      maxWidth="sm"
+      fullWidth
+      slotProps={{
+        paper: {
+          sx: {
+            borderRadius: 2,
+          }
+        }
       }}
     >
-      <div
-        style={{
-          backgroundColor: "white",
-          padding: "20px",
-          borderRadius: "10px",
-          width: "90%",
-          maxWidth: "500px",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-        }}
-      >
-        <h2 style={{ marginTop: 0 }}>ランニングルートを保存</h2>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <RunIcon color="primary" />
+        <Typography variant="h5" component="h2">
+          ランニングルートを保存
+        </Typography>
+      </DialogTitle>
 
+      <DialogContent>
         {/* ルート情報 */}
-        <div
-          style={{
-            backgroundColor: "#f8f9fa",
-            padding: "15px",
-            borderRadius: "5px",
-            marginBottom: "20px",
+        <Paper
+          elevation={1}
+          sx={{
+            p: 2,
+            mb: 3,
+            backgroundColor: 'grey.50',
           }}
         >
-          <div style={{ display: "flex", gap: "20px", fontSize: "1.1em" }}>
-            <span>📏 距離: {formatDistance(distance)}</span>
-            <span>⏱️ 時間: {formatDuration(duration)}</span>
-          </div>
-        </div>
+          <Box sx={{ display: "flex", gap: 3, alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <RunIcon color="primary" />
+              <Typography variant="body1" fontWeight="medium">
+                距離: {formatDistance(distance)}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <TimeIcon color="primary" />
+              <Typography variant="body1" fontWeight="medium">
+                時間: {formatDuration(duration)}
+              </Typography>
+            </Box>
+          </Box>
+        </Paper>
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: "15px" }}>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              ルート名 *
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="例: 朝の公園ランニング"
-              style={{
-                width: "95%",
-                padding: "10px",
-                border: "1px solid #ddd",
-                borderRadius: "5px",
-                fontSize: "16px",
-              }}
-              disabled={isLoading}
-              maxLength={255}
-            />
-          </div>
+        <Box component="form" onSubmit={handleSubmit}>
+          <TextField
+            label="ルート名"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="例: 朝の公園ランニング"
+            fullWidth
+            required
+            disabled={isLoading}
+            slotProps={{ htmlInput: { maxLength: 255 } }}
+            sx={{ mb: 2 }}
+            variant="outlined"
+          />
 
-          <div style={{ marginBottom: "20px" }}>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              説明 (任意)
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="ルートの特徴や感想を記録..."
-              style={{
-                width: "95%",
-                padding: "10px",
-                border: "1px solid #ddd",
-                borderRadius: "5px",
-                fontSize: "16px",
-                minHeight: "80px",
-                resize: "vertical",
-              }}
-              disabled={isLoading}
-              maxLength={1000}
-            />
-          </div>
+          <TextField
+            label="説明 (任意)"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="ルートの特徴や感想を記録..."
+            fullWidth
+            multiline
+            rows={3}
+            disabled={isLoading}
+            slotProps={{ htmlInput: { maxLength: 1000 } }}
+            sx={{ mb: 2 }}
+            variant="outlined"
+          />
 
           {error && (
-            <div
-              style={{
-                color: "#dc3545",
-                backgroundColor: "#f8d7da",
-                border: "1px solid #f5c6cb",
-                borderRadius: "5px",
-                padding: "10px",
-                marginBottom: "15px",
-              }}
-            >
+            <Alert severity="error" sx={{ mb: 2 }}>
               {error}
-            </div>
+            </Alert>
           )}
 
-          <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={handleClose}
-              disabled={isLoading}
-              style={{
-                padding: "10px 20px",
-                backgroundColor: "#6c757d",
-                color: "white",
-                border: "none",
-                borderRadius: "5px",
-                cursor: isLoading ? "not-allowed" : "pointer",
-              }}
-            >
-              キャンセル
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading || !name.trim()}
-              style={{
-                padding: "10px 20px",
-                backgroundColor: isLoading || !name.trim() ? "#6c757d" : "#007bff",
-                color: "white",
-                border: "none",
-                borderRadius: "5px",
-                cursor: isLoading || !name.trim() ? "not-allowed" : "pointer",
-              }}
-            >
-              {isLoading ? "保存中..." : "💾 保存"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </Box>
+      </DialogContent>
+      
+      <Divider />
+      
+      <DialogActions sx={{ p: 2 }}>
+        <Button
+          onClick={handleClose}
+          disabled={isLoading}
+          variant="outlined"
+          color="inherit"
+        >
+          キャンセル
+        </Button>
+        <Button
+          type="submit"
+          onClick={handleSubmit}
+          disabled={isLoading || !name.trim()}
+          variant="contained"
+          startIcon={
+            isLoading ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />
+          }
+          sx={{ ml: 1 }}
+        >
+          {isLoading ? "保存中..." : "保存"}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 };
 

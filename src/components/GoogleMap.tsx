@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Wrapper } from "@googlemaps/react-wrapper";
 import { RoutePoint } from "../hooks/useRunningRoute";
 import { RunningRoute } from "../lib/supabase";
@@ -61,6 +61,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   });
   const isDraggingRef = useRef<boolean>(false);
   const dragStartPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const zoomListenerRef = useRef<google.maps.MapsEventListener | null>(null);
+  const prevShowAllRoutesRef = useRef<boolean>(showAllRoutes);
 
   useEffect(() => {
     if (ref.current && !mapRef.current) {
@@ -104,6 +106,36 @@ const MapComponent: React.FC<GoogleMapProps> = ({
       }
     }
   }, [center, zoom, onMapReady, isEditMode]);
+
+  // ズーム変更時の再描画用のstate
+  const [zoomTrigger, setZoomTrigger] = useState(0);
+
+  // ズーム変更イベントリスナーを管理
+  useEffect(() => {
+    if (mapRef.current) {
+      // 既存のリスナーをクリア
+      if (zoomListenerRef.current) {
+        google.maps.event.removeListener(zoomListenerRef.current);
+      }
+
+      // ズーム変更イベントリスナーを追加
+      zoomListenerRef.current = mapRef.current.addListener("zoom_changed", () => {
+        // ズーム変更時にマーカーを再描画（全モードで実行）
+        if (routeMarkersRef.current.length > 0 || allRoutesMarkersRef.current.length > 0) {
+          // マーカーをクリアして再作成をトリガー
+          setTimeout(() => {
+            setZoomTrigger((prev) => prev + 1);
+          }, 100);
+        }
+      });
+
+      return () => {
+        if (zoomListenerRef.current) {
+          google.maps.event.removeListener(zoomListenerRef.current);
+        }
+      };
+    }
+  }, [isEditMode, isDemoMode]);
 
   // 地図クリックイベントを別のuseEffectで管理
   useEffect(() => {
@@ -151,39 +183,27 @@ const MapComponent: React.FC<GoogleMapProps> = ({
     }
   }, [isDemoMode, isEditMode, onMapClick]);
 
-  // ユーザー位置マーカーの更新（現在位置アイコンは非表示）
+  // ユーザー位置でマップの中心を移動
   useEffect(() => {
-    if (mapRef.current && userPosition) {
-      // 現在位置マーカーは表示しない
-      // if (userMarkerRef.current) {
-      //   // 既存マーカーの位置を更新
-      //   userMarkerRef.current.setPosition(userPosition);
-      // } else {
-      //   // 新しいマーカーを作成
-      //   userMarkerRef.current = new google.maps.Marker({
-      //     position: userPosition,
-      //     map: mapRef.current,
-      //     title: "現在位置",
-      //     icon: {
-      //       path: google.maps.SymbolPath.CIRCLE,
-      //       scale: 8,
-      //       fillColor: "#4285F4",
-      //       fillOpacity: 1,
-      //       strokeColor: "#ffffff",
-      //       strokeWeight: 2,
-      //     },
-      //   });
-      // }
-
-      // 記録中でない場合かつ編集・手動作成モードでない場合のみマップの中心を移動
-      if (!isRecording && !isEditMode && !isDemoMode) {
-        mapRef.current.panTo(userPosition);
-      }
+    if (mapRef.current && userPosition && !isRecording && !isEditMode && !isDemoMode && !selectedRouteId && !showAllRoutes) {
+      mapRef.current.panTo(userPosition);
     }
-  }, [userPosition, isRecording, isEditMode, isDemoMode]);
+  }, [userPosition, isRecording, isEditMode, isDemoMode, selectedRouteId, showAllRoutes]);
 
   // ルート変更時の地図位置調整（編集モード・手動作成モード時は無効）
   useEffect(() => {
+    // 全表示から個別表示への切り替えかどうかをチェック
+    const wasShowingAllRoutes = prevShowAllRoutesRef.current;
+    const isChangingFromAllToSingle = wasShowingAllRoutes && !showAllRoutes;
+    
+    // 前回の状態を更新
+    prevShowAllRoutesRef.current = showAllRoutes;
+    
+    // 全表示から個別表示への切り替え時は移動しない
+    if (isChangingFromAllToSingle) {
+      return;
+    }
+    
     if (mapRef.current && routePoints.length > 0 && !showAllRoutes && !isEditMode && !isDemoMode) {
       // ルートの境界を計算
       const bounds = new google.maps.LatLngBounds();
@@ -199,7 +219,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         right: 40,
       });
     }
-  }, [routePoints, showAllRoutes, selectedRouteId, isEditMode, isDemoMode]); // isEditModeとisDemoModeを依存配列に追加
+  }, [routePoints, showAllRoutes, selectedRouteId, isEditMode, isDemoMode]);
 
   // ランニングルートの描画
   useEffect(() => {
@@ -265,11 +285,11 @@ const MapComponent: React.FC<GoogleMapProps> = ({
     }
   }, [routePoints, isRecording, isEditMode, onRouteLineClick]);
 
-  // 最新の関数を保持
-  useEffect(() => {
-    (window as any).currentOnPointDrag = onPointDrag;
-    (window as any).currentOnPointDelete = onPointDelete;
-  }, [onPointDrag, onPointDelete]);
+  // 最新の関数をRefで保持（useEffect削除）
+  const onPointDragRef = useRef(onPointDrag);
+  const onPointDeleteRef = useRef(onPointDelete);
+  onPointDragRef.current = onPointDrag;
+  onPointDeleteRef.current = onPointDelete;
 
   // ルートポイントマーカーの描画（編集モード、手動作成モード、または個別ルート表示時）
   useEffect(() => {
@@ -365,7 +385,55 @@ const MapComponent: React.FC<GoogleMapProps> = ({
     distanceLabelsRef.current = [];
 
     if (mapRef.current && shouldShowMarkersAndLabels && routePoints.length > 0) {
-      routePoints.forEach((point, index) => {
+      // ズームレベルに応じた間引き処理
+      const getDisplayIndices = () => {
+        // 編集モード・手動作成モード時は全ポイント表示
+        if (isEditMode || isDemoMode) {
+          return routePoints.map((_, index) => index);
+        }
+
+        // ズームレベルに応じて表示間隔を調整
+        const currentZoom = mapRef.current?.getZoom() || 15;
+
+        // ズーム16以上は全ピン表示
+        if (currentZoom >= 16) {
+          return routePoints.map((_, index) => index);
+        }
+
+        let targetInterval: number;
+
+        if (currentZoom >= 14) {
+          targetInterval = 500; // 高ズーム時は500m間隔
+        } else if (currentZoom >= 12) {
+          targetInterval = 1000; // 中ズーム時は1000m間隔
+        } else {
+          targetInterval = 2000; // 低ズーム時は2000m間隔
+        }
+
+        // 間引き処理
+        const displayIndices = [0]; // スタートは必ず含める
+        let lastDisplayedDistance = 0;
+
+        for (let i = 1; i < routePoints.length - 1; i++) {
+          const currentDistance = cumulativeDistances[i];
+          if (currentDistance - lastDisplayedDistance >= targetInterval) {
+            displayIndices.push(i);
+            lastDisplayedDistance = currentDistance;
+          }
+        }
+
+        // ゴールは必ず含める
+        if (routePoints.length > 1) {
+          displayIndices.push(routePoints.length - 1);
+        }
+
+        return displayIndices;
+      };
+
+      const displayIndices = getDisplayIndices();
+
+      displayIndices.forEach((index) => {
+        const point = routePoints[index];
         const isStart = index === 0;
         const isEnd = index === routePoints.length - 1;
 
@@ -394,7 +462,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             strokeWeight: 2,
           },
           optimized: false,
-          zIndex: -1,
+          zIndex: -100,
         });
 
         let longTapTimer: NodeJS.Timeout | null = null;
@@ -526,9 +594,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                 const newPos = new google.maps.LatLng(lat, lng);
                 marker.setPosition(newPos);
 
-                const currentOnPointDrag = (window as any).currentOnPointDrag;
-                if (currentOnPointDrag) {
-                  currentOnPointDrag(index, lat, lng);
+                if (onPointDragRef.current) {
+                  onPointDragRef.current(index, lat, lng);
                 }
               }
             }
@@ -562,9 +629,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                 const newPos = new google.maps.LatLng(lat, lng);
                 marker.setPosition(newPos);
 
-                const currentOnPointDrag = (window as any).currentOnPointDrag;
-                if (currentOnPointDrag) {
-                  currentOnPointDrag(index, lat, lng);
+                if (onPointDragRef.current) {
+                  onPointDragRef.current(index, lat, lng);
                 }
               }
             }
@@ -659,9 +725,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         // マーカーのネイティブドラッグイベント
         marker.addListener("drag", (e: google.maps.MapMouseEvent) => {
           if (e.latLng) {
-            const currentOnPointDrag = (window as any).currentOnPointDrag;
-            if (currentOnPointDrag) {
-              currentOnPointDrag(index, e.latLng.lat(), e.latLng.lng());
+            if (onPointDragRef.current) {
+              onPointDragRef.current(index, e.latLng.lat(), e.latLng.lng());
             }
           }
         });
@@ -709,9 +774,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           }
           if (isEditMode || isDemoMode) {
             // 最新のonPointDelete関数を使用
-            const currentOnPointDelete = (window as any).currentOnPointDelete;
-            if (currentOnPointDelete) {
-              currentOnPointDelete(index);
+            if (onPointDeleteRef.current) {
+              onPointDeleteRef.current(index);
             }
           }
         });
@@ -750,7 +814,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         distanceLabelsRef.current.push(distanceLabel);
       });
     }
-  }, [routePoints, isEditMode, isDemoMode, showAllRoutes]);
+  }, [routePoints, isEditMode, isDemoMode, showAllRoutes, zoomTrigger]);
 
   // 全ルート表示機能
   useEffect(() => {
@@ -842,23 +906,12 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
           // パフォーマンス改善：ズームレベルに応じた距離ベース間引き
           const getDisplayPoints = () => {
-            // ズームレベルに応じて表示間隔を調整
-            const currentZoom = mapRef.current?.getZoom() || 15;
-            let targetInterval: number;
-
-            if (currentZoom >= 14) {
-              targetInterval = 500; // 高ズーム時は500m間隔
-            } else if (currentZoom >= 12) {
-              targetInterval = 1000; // 中ズーム時は1000m間隔
-            } else {
-              targetInterval = 2000; // 低ズーム時は2000m間隔
-            }
-
-            // 選択ルートでも距離による間引きを適用（編集モード時は除く）
-            // 編集モード時は全ポイント表示
-            if (isSelected && (isEditMode || isDemoMode)) {
+            // 選択ルートは全ピン表示
+            if (isSelected) {
               return path.map((_, index) => index);
             }
+
+            let targetInterval: number = 1000; // 非選択ルートは1000m間隔
 
             // 選択・非選択共に動的間隔で表示
             const displayIndices = [0]; // スタートは必ず含める
@@ -910,7 +963,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                 strokeWeight: isSelected ? 2 : 1.5,
               },
               optimized: false,
-              zIndex: -1,
+              zIndex: -100,
             });
 
             allRoutesMarkersRef.current.push(marker);
@@ -953,7 +1006,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
       // 全ルート表示時のマップ移動は無効化
       // ユーザーが手動で表示範囲を調整できるように変更
     }
-  }, [showAllRoutes, allRoutes, selectedRouteId]);
+  }, [showAllRoutes, allRoutes, selectedRouteId, zoomTrigger]);
 
   return (
     <div
