@@ -105,7 +105,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`
+          redirectTo: process.env.NODE_ENV === 'production' 
+            ? `${process.env.REACT_APP_PRODUCTION_URL || window.location.origin}/`
+            : `${window.location.origin}/`
         }
       });
       if (error) throw error;

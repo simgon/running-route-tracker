@@ -7,8 +7,8 @@ import {
   CardContent,
   IconButton,
   Chip,
-  Tooltip
-} from '@mui/material';
+  Tooltip,
+} from "@mui/material";
 import {
   FolderOpen as FolderIcon,
   Visibility as ViewAllIcon,
@@ -20,8 +20,8 @@ import {
   ContentCopy as CopyIcon,
   Create as CreateIcon,
   Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon
-} from '@mui/icons-material';
+  VisibilityOff as VisibilityOffIcon,
+} from "@mui/icons-material";
 import { RunningRoute } from "../lib/supabase";
 
 interface RouteOverlayProps {
@@ -80,22 +80,25 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
     if (selectedRouteId && scrollContainerRef.current && routeRefsRef.current[selectedRouteId]) {
       const container = scrollContainerRef.current;
       const selectedElement = routeRefsRef.current[selectedRouteId];
-      
+
       if (selectedElement) {
         const containerRect = container.getBoundingClientRect();
         const elementRect = selectedElement.getBoundingClientRect();
-        
+
         // 要素が表示範囲外の場合にスクロール
-        const isVisible = elementRect.left >= containerRect.left && 
-                         elementRect.right <= containerRect.right;
-        
+        const isVisible =
+          elementRect.left >= containerRect.left && elementRect.right <= containerRect.right;
+
         if (!isVisible) {
-          const scrollLeft = selectedElement.offsetLeft - container.offsetLeft - 
-                           (container.clientWidth / 2) + (selectedElement.clientWidth / 2);
-          
+          const scrollLeft =
+            selectedElement.offsetLeft -
+            container.offsetLeft -
+            container.clientWidth / 2 +
+            selectedElement.clientWidth / 2;
+
           container.scrollTo({
             left: Math.max(0, scrollLeft),
-            behavior: 'smooth'
+            behavior: "smooth",
           });
         }
       }
@@ -170,27 +173,27 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
           const container = e.currentTarget;
           const startX = e.pageX - container.offsetLeft;
           const scrollLeft = container.scrollLeft;
-          
+
           container.style.cursor = "grabbing";
-          
+
           const handleMouseMove = (e: MouseEvent) => {
             setIsDragging(true);
             const x = e.pageX - container.offsetLeft;
             const walk = (x - startX) * 2; // スクロール速度調整
             container.scrollLeft = scrollLeft - walk;
           };
-          
+
           const handleMouseUp = () => {
             container.style.cursor = "grab";
             document.removeEventListener("mousemove", handleMouseMove);
             document.removeEventListener("mouseup", handleMouseUp);
-            
+
             // ドラッグ状態を少し遅延してリセット（クリックイベント抑制のため）
             setTimeout(() => {
               setIsDragging(false);
             }, 100);
           };
-          
+
           document.addEventListener("mousemove", handleMouseMove);
           document.addEventListener("mouseup", handleMouseUp);
         }}
@@ -199,8 +202,10 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
         {onStartManualCreation && (
           <div
             style={{
-              minWidth: isMobile ? "170px" : "200px",
+              minWidth: isMobile ? "155px" : "200px",
               maxWidth: isMobile ? "200px" : "250px",
+              minHeight: isMobile ? "100px" : "120px",
+              maxHeight: isMobile ? "120px" : "140px",
               backgroundColor: isCopyMode ? "#fff3e0" : "#e8f5e8",
               border: isCopyMode ? "2px dashed #ff9800" : "2px dashed #28a745",
               borderRadius: "8px",
@@ -238,9 +243,9 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                   height: 24,
                   backgroundColor: isCopyMode ? "warning.main" : "success.main",
                   color: "white",
-                  '&:hover': {
+                  "&:hover": {
                     backgroundColor: isCopyMode ? "warning.dark" : "success.dark",
-                  }
+                  },
                 }}
               >
                 {isCopyMode ? "✏️" : "📋"}
@@ -261,7 +266,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                   onStartManualCreation();
                 }
               }}
-              style={{ width: "100%", height: "100%" }}
+              style={{ width: "100%", height: "auto" }}
               onMouseEnter={(e) => {
                 const parent = e.currentTarget.parentElement;
                 if (parent) {
@@ -298,8 +303,10 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               onStartAIGeneration();
             }}
             style={{
-              minWidth: isMobile ? "170px" : "200px",
+              minWidth: isMobile ? "155px" : "200px",
               maxWidth: isMobile ? "200px" : "250px",
+              minHeight: isMobile ? "100px" : "120px",
+              maxHeight: isMobile ? "120px" : "140px",
               backgroundColor: "#e3f2fd",
               border: "2px dashed #2196f3",
               borderRadius: "8px",
@@ -346,7 +353,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                   e.preventDefault();
                   return;
                 }
-                
+
                 if (isCopyMode) {
                   // コピーモード：ルートをコピーして新規作成
                   if (onStartRouteCopy) {
@@ -363,29 +370,27 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                 maxWidth: isMobile ? 200 : 250,
                 minHeight: isMobile ? 100 : 120,
                 maxHeight: isMobile ? 120 : 140,
-                backgroundColor: isCopyMode 
-                  ? "warning.light" 
-                  : isSelected ? "grey.100" : "background.paper",
-                border: isCopyMode 
-                  ? 2 
-                  : isSelected ? 2 : 1,
+                backgroundColor: isCopyMode
+                  ? "warning.light"
+                  : isSelected
+                  ? "grey.100"
+                  : "background.paper",
+                border: isCopyMode ? 2 : isSelected ? 2 : 1,
                 borderStyle: isCopyMode ? "dashed" : "solid",
-                borderColor: isCopyMode 
-                  ? "warning.main" 
-                  : isSelected ? "primary.main" : "divider",
+                borderColor: isCopyMode ? "warning.main" : isSelected ? "primary.main" : "divider",
                 cursor: "pointer",
                 transition: "all 0.2s ease",
                 position: "relative",
                 userSelect: "none",
                 opacity: isCopyMode ? 0.9 : 1,
-                '&:hover': {
-                  transform: !isSelected ? 'translateY(-1px)' : 'none',
+                "&:hover": {
+                  transform: !isSelected ? "translateY(-1px)" : "none",
                   boxShadow: isSelected ? 4 : 2,
-                  '& .action-buttons': {
+                  "& .action-buttons": {
                     opacity: 1,
-                    visibility: 'visible',
-                  }
-                }
+                    visibility: "visible",
+                  },
+                },
               }}
             >
               {/* 表示/非表示ボタン */}
@@ -405,9 +410,9 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                       height: 24,
                       backgroundColor: visibleRoutes.has(route.id) ? "success.main" : "grey.400",
                       color: "white",
-                      '&:hover': {
+                      "&:hover": {
                         backgroundColor: visibleRoutes.has(route.id) ? "success.dark" : "grey.600",
-                      }
+                      },
                     }}
                   >
                     {visibleRoutes.has(route.id) ? (
@@ -430,9 +435,9 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                     top: 8,
                     left: 8,
                     fontSize: "0.6rem",
-                    '& .MuiChip-icon': {
-                      fontSize: '0.8rem'
-                    }
+                    "& .MuiChip-icon": {
+                      fontSize: "0.8rem",
+                    },
                   }}
                 />
               )}
@@ -448,8 +453,8 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                     display: "flex",
                     gap: 0.5,
                     opacity: 0,
-                    visibility: 'hidden',
-                    transition: 'opacity 0.2s ease, visibility 0.2s ease',
+                    visibility: "hidden",
+                    transition: "opacity 0.2s ease, visibility 0.2s ease",
                   }}
                 >
                   <Tooltip title="編集">
@@ -465,9 +470,9 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                         height: 24,
                         backgroundColor: "warning.main",
                         color: "white",
-                        '&:hover': {
+                        "&:hover": {
                           backgroundColor: "warning.dark",
-                        }
+                        },
                       }}
                     >
                       <EditIcon fontSize="small" />
@@ -486,9 +491,9 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                         height: 24,
                         backgroundColor: "error.main",
                         color: "white",
-                        '&:hover': {
+                        "&:hover": {
                           backgroundColor: "error.dark",
-                        }
+                        },
                       }}
                     >
                       <DeleteIcon fontSize="small" />
@@ -498,18 +503,20 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               )}
 
               {/* ルート情報 */}
-              <CardContent sx={{ 
-                pr: 1.5, 
-                pt: 1, 
-                pb: 1, 
-                px: 1.5,
-                '&:last-child': { pb: 1 },
-                overflow: 'hidden',
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between'
-              }}>
+              <CardContent
+                sx={{
+                  pr: 1.5,
+                  pt: 1,
+                  pb: 1,
+                  px: 1.5,
+                  "&:last-child": { pb: 1 },
+                  overflow: "hidden",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                }}
+              >
                 <Typography
                   variant="subtitle2"
                   component="h4"
@@ -519,9 +526,9 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                     mb: 0.5,
                     fontSize: isMobile ? "0.7rem" : "0.8rem",
                     lineHeight: 1.1,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {route.name}

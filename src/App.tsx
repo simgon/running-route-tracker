@@ -643,7 +643,7 @@ const AppContent: React.FC = () => {
             <h1
               style={{
                 margin: "5px 0",
-                fontSize: "1.5em",
+                fontSize: "1.2em",
                 textAlign: "left",
                 fontFamily: "Poppins, sans-serif",
                 fontWeight: "600",
