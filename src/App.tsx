@@ -8,6 +8,8 @@ import RouteOverlay from "./components/RouteOverlay";
 import AIRouteOptimizer from "./components/AIRouteOptimizer";
 import LoginModal from "./components/LoginModal";
 import UserProfile from "./components/UserProfile";
+import CurrentLocationButton from "./components/CurrentLocationButton";
+import CurrentLocationMarker from "./components/CurrentLocationMarker";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { useGeolocation } from "./hooks/useGeolocation";
 import { useRouteStorage } from "./hooks/useRouteStorage";
@@ -57,6 +59,10 @@ const AppContent: React.FC = () => {
   } | null>(null);
   const [showAIOptimizer, setShowAIOptimizer] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [currentLocationMarker, setCurrentLocationMarker] = useState<{
+    position: { lat: number; lng: number };
+    heading: number;
+  } | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
 
   // デフォルトの位置（東京駅）
@@ -94,6 +100,49 @@ const AppContent: React.FC = () => {
     setTimeout(() => {
       setToastMessage(null);
     }, 3000); // 3秒後に非表示
+  };
+
+  // 現在位置を取得して表示
+  const handleCurrentLocationClick = async () => {
+    if (!navigator.geolocation) {
+      showToast("現在位置の取得に対応していません", "error");
+      return;
+    }
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000,
+        });
+      });
+
+      const { latitude, longitude, heading } = position.coords;
+      const currentPos = { lat: latitude, lng: longitude };
+
+      // マップを現在位置に移動
+      if (mapRef.current) {
+        mapRef.current.setCenter(currentPos);
+        mapRef.current.setZoom(18);
+      }
+
+      // 現在位置マーカーを表示
+      setCurrentLocationMarker({
+        position: currentPos,
+        heading: heading || 0,
+      });
+
+      showToast("現在位置を表示しました", "success");
+    } catch (error) {
+      console.error("現在位置の取得に失敗:", error);
+      showToast("現在位置の取得に失敗しました", "error");
+    }
+  };
+
+  // 現在位置マーカーのフェードアウト完了
+  const handleCurrentLocationFadeComplete = () => {
+    setCurrentLocationMarker(null);
   };
 
   // マップをルートに合わせてフィット
@@ -824,35 +873,44 @@ const AppContent: React.FC = () => {
 
             {/* Google Maps */}
             {apiKey ? (
-              <GoogleMap
-                apiKey={apiKey}
-                center={mapCenter}
-                zoom={15}
-                style={{ height: "100%", width: "100%" }}
-                onMapReady={handleMapReady}
-                userPosition={userPosition}
-                routePoints={
-                  isEditMode
-                    ? editableRoute
-                    : isManualMode && editableRoute.length > 0
-                    ? editableRoute
-                    : visibleRoutes.size > 0
-                    ? []
-                    : loadedRoute
-                }
-                onMapClick={handleMapClick}
-                isDemoMode={isManualMode}
-                isEditMode={isEditMode}
-                onPointDrag={handlePointDrag}
-                onPointDelete={handlePointDelete}
-                onRouteLineClick={handleRouteLineClick}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-                allRoutes={allRoutes}
-                visibleRoutes={visibleRoutes}
-                selectedRouteId={selectedRouteId}
-                onRouteSelect={handleLoadRoute}
-              />
+              <div style={{ position: "relative", height: "100%", width: "100%" }}>
+                <GoogleMap
+                  apiKey={apiKey}
+                  center={mapCenter}
+                  zoom={15}
+                  style={{ height: "100%", width: "100%" }}
+                  onMapReady={handleMapReady}
+                  userPosition={userPosition}
+                  routePoints={
+                    isEditMode
+                      ? editableRoute
+                      : isManualMode && editableRoute.length > 0
+                      ? editableRoute
+                      : visibleRoutes.size > 0
+                      ? []
+                      : loadedRoute
+                  }
+                  onMapClick={handleMapClick}
+                  isDemoMode={isManualMode}
+                  isEditMode={isEditMode}
+                  onPointDrag={handlePointDrag}
+                  onPointDelete={handlePointDelete}
+                  onRouteLineClick={handleRouteLineClick}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  allRoutes={allRoutes}
+                  visibleRoutes={visibleRoutes}
+                  selectedRouteId={selectedRouteId}
+                  onRouteSelect={handleLoadRoute}
+                  currentLocationMarker={currentLocationMarker}
+                  onCurrentLocationFadeComplete={handleCurrentLocationFadeComplete}
+                />
+                {/* 現在位置ボタン */}
+                <CurrentLocationButton
+                  onLocationClick={handleCurrentLocationClick}
+                  disabled={loading}
+                />
+              </div>
             ) : (
               <div
                 style={{

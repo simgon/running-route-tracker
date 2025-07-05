@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Wrapper } from "@googlemaps/react-wrapper";
 import { RoutePoint } from "../hooks/useRunningRoute";
 import { RunningRoute } from "../lib/supabase";
+import CurrentLocationMarker from "./CurrentLocationMarker";
 
 interface GoogleMapProps {
   center: google.maps.LatLngLiteral;
@@ -23,6 +24,11 @@ interface GoogleMapProps {
   visibleRoutes?: Set<string>;
   selectedRouteId?: string;
   onRouteSelect?: (route: RunningRoute) => void;
+  currentLocationMarker?: {
+    position: { lat: number; lng: number };
+    heading: number;
+  } | null;
+  onCurrentLocationFadeComplete?: () => void;
 }
 
 const MapComponent: React.FC<GoogleMapProps> = ({
@@ -45,6 +51,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   visibleRoutes = new Set(),
   selectedRouteId,
   onRouteSelect,
+  currentLocationMarker,
+  onCurrentLocationFadeComplete,
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -63,7 +71,6 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   const dragStartPositionRef = useRef<{ x: number; y: number } | null>(null);
   const zoomListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const prevVisibleRoutesRef = useRef<Set<string>>(visibleRoutes);
-
 
   useEffect(() => {
     if (ref.current && !mapRef.current) {
@@ -91,11 +98,6 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         streetViewControlOptions: {
           position: google.maps.ControlPosition.TOP_RIGHT,
         },
-        myLocationControlOptions: {
-          position: google.maps.ControlPosition.TOP_RIGHT,
-        },
-        myLocationEnabled: true, // 青い丸と方向表示を有効化
-        myLocationControl: true, // 現在位置ボタンを有効化
         gestureHandling: "greedy", // ジェスチャー操作を許可
       } as google.maps.MapOptions);
 
@@ -105,7 +107,6 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           e.stop();
         });
       }
-
 
       // マップ準備完了をコールバック
       if (onMapReady) {
@@ -192,7 +193,15 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
   // ユーザー位置でマップの中心を移動
   useEffect(() => {
-    if (mapRef.current && userPosition && !isRecording && !isEditMode && !isDemoMode && !selectedRouteId && visibleRoutes.size === 0) {
+    if (
+      mapRef.current &&
+      userPosition &&
+      !isRecording &&
+      !isEditMode &&
+      !isDemoMode &&
+      !selectedRouteId &&
+      visibleRoutes.size === 0
+    ) {
       mapRef.current.panTo(userPosition);
     }
   }, [userPosition, isRecording, isEditMode, isDemoMode, selectedRouteId, visibleRoutes]);
@@ -202,16 +211,22 @@ const MapComponent: React.FC<GoogleMapProps> = ({
     // 全表示から個別表示への切り替えかどうかをチェック
     const wasShowingRoutes = prevVisibleRoutesRef.current.size > 0;
     const isChangingFromAllToSingle = wasShowingRoutes && visibleRoutes.size === 0;
-    
+
     // 前回の状態を更新
     prevVisibleRoutesRef.current = visibleRoutes;
-    
+
     // 全表示から個別表示への切り替え時は移動しない
     if (isChangingFromAllToSingle) {
       return;
     }
-    
-    if (mapRef.current && routePoints.length > 0 && visibleRoutes.size === 0 && !isEditMode && !isDemoMode) {
+
+    if (
+      mapRef.current &&
+      routePoints.length > 0 &&
+      visibleRoutes.size === 0 &&
+      !isEditMode &&
+      !isDemoMode
+    ) {
       // ルートの境界を計算
       const bounds = new google.maps.LatLngBounds();
       routePoints.forEach((point) => {
@@ -839,35 +854,35 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
     if (visibleRoutes.size > 0 && allRoutes.length > 0) {
       // visibleRoutesに含まれるルートのみを表示
-      const routesToDisplay = allRoutes.filter(route => visibleRoutes.has(route.id));
-      
-      routesToDisplay.forEach((route, routeIndex) => {
-      // 距離計算関数
-      const calculateDistance = (
-        lat1: number,
-        lng1: number,
-        lat2: number,
-        lng2: number
-      ): number => {
-        const R = 6371000; // 地球の半径（メートル）
-        const dLat = ((lat2 - lat1) * Math.PI) / 180;
-        const dLng = ((lng2 - lng1) * Math.PI) / 180;
-        const a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos((lat1 * Math.PI) / 180) *
-            Math.cos((lat2 * Math.PI) / 180) *
-            Math.sin(dLng / 2) *
-            Math.sin(dLng / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
-      };
+      const routesToDisplay = allRoutes.filter((route) => visibleRoutes.has(route.id));
 
-      const formatDistance = (meters: number) => {
-        if (meters < 1000) {
-          return `${meters.toFixed(0)}m`;
-        }
-        return `${(meters / 1000).toFixed(2)}km`;
-      };
+      routesToDisplay.forEach((route, routeIndex) => {
+        // 距離計算関数
+        const calculateDistance = (
+          lat1: number,
+          lng1: number,
+          lat2: number,
+          lng2: number
+        ): number => {
+          const R = 6371000; // 地球の半径（メートル）
+          const dLat = ((lat2 - lat1) * Math.PI) / 180;
+          const dLng = ((lng2 - lng1) * Math.PI) / 180;
+          const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos((lat1 * Math.PI) / 180) *
+              Math.cos((lat2 * Math.PI) / 180) *
+              Math.sin(dLng / 2) *
+              Math.sin(dLng / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          return R * c;
+        };
+
+        const formatDistance = (meters: number) => {
+          if (meters < 1000) {
+            return `${meters.toFixed(0)}m`;
+          }
+          return `${(meters / 1000).toFixed(2)}km`;
+        };
 
         if (route.route_data?.coordinates) {
           const path = route.route_data.coordinates.map((coord) => ({
@@ -1021,11 +1036,16 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   // 現在位置アイコンの表示制御
 
   return (
-    <div
-      ref={ref}
-      style={style}
-      onContextMenu={isEditMode ? (e) => e.preventDefault() : undefined}
-    />
+    <div ref={ref} style={style} onContextMenu={isEditMode ? (e) => e.preventDefault() : undefined}>
+      {currentLocationMarker && mapRef.current && (
+        <CurrentLocationMarker
+          position={currentLocationMarker.position}
+          heading={currentLocationMarker.heading}
+          map={mapRef.current}
+          onFadeComplete={onCurrentLocationFadeComplete}
+        />
+      )}
+    </div>
   );
 };
 
@@ -1050,8 +1070,11 @@ interface GoogleMapWrapperProps {
   visibleRoutes?: Set<string>;
   selectedRouteId?: string;
   onRouteSelect?: (route: RunningRoute) => void;
-  showLocationIcon?: boolean;
-  userHeading?: number;
+  currentLocationMarker?: {
+    position: { lat: number; lng: number };
+    heading: number;
+  } | null;
+  onCurrentLocationFadeComplete?: () => void;
 }
 
 const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
@@ -1075,6 +1098,8 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
   visibleRoutes,
   selectedRouteId,
   onRouteSelect,
+  currentLocationMarker,
+  onCurrentLocationFadeComplete,
 }) => {
   const render = (status: any) => {
     switch (status) {
@@ -1104,6 +1129,8 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
             visibleRoutes={visibleRoutes}
             selectedRouteId={selectedRouteId}
             onRouteSelect={onRouteSelect}
+            currentLocationMarker={currentLocationMarker}
+            onCurrentLocationFadeComplete={onCurrentLocationFadeComplete}
           />
         );
       default:
@@ -1133,6 +1160,8 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
         visibleRoutes={visibleRoutes}
         selectedRouteId={selectedRouteId}
         onRouteSelect={onRouteSelect}
+        currentLocationMarker={currentLocationMarker}
+        onCurrentLocationFadeComplete={onCurrentLocationFadeComplete}
       />
     </Wrapper>
   );
