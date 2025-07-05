@@ -18,6 +18,8 @@ const CurrentLocationMarker: React.FC<CurrentLocationMarkerProps> = ({
   useEffect(() => {
     // SVGアイコンを作成（青い丸と方向を示す扇形）
     const createLocationIcon = (heading: number) => {
+      console.log("CurrentLocationMarker: heading =", heading);
+
       const size = 100;
       const centerX = size / 2;
       const centerY = size / 2;
@@ -28,6 +30,8 @@ const CurrentLocationMarker: React.FC<CurrentLocationMarkerProps> = ({
       const fanLength = 100;
       const startAngle = heading - fanAngle / 2;
       const endAngle = heading + fanAngle / 2;
+
+      console.log("扇形角度:", { heading, startAngle, endAngle });
 
       const startX = centerX + Math.cos((startAngle * Math.PI) / 180) * fanLength;
       const startY = centerY + Math.sin((startAngle * Math.PI) / 180) * fanLength;

@@ -4,6 +4,7 @@ import CssBaseline from "@mui/material/CssBaseline";
 import { DirectionsRun, Person } from "@mui/icons-material";
 import GoogleMap from "./components/GoogleMap";
 import SaveRouteModal from "./components/SaveRouteModal";
+import EditRouteModal from "./components/EditRouteModal";
 import RouteOverlay from "./components/RouteOverlay";
 import AIRouteOptimizer from "./components/AIRouteOptimizer";
 import LoginModal from "./components/LoginModal";
@@ -58,10 +59,13 @@ const AppContent: React.FC = () => {
   } | null>(null);
   const [showAIOptimizer, setShowAIOptimizer] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [editingRoute, setEditingRoute] = useState<RunningRoute | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [currentLocationMarker, setCurrentLocationMarker] = useState<{
     position: { lat: number; lng: number };
     heading: number;
   } | null>(null);
+  const [isRouteOverlayExpanded, setIsRouteOverlayExpanded] = useState(false);
   const mapRef = useRef<google.maps.Map | null>(null);
 
   // デフォルトの位置（東京駅）
@@ -141,7 +145,7 @@ const AppContent: React.FC = () => {
       console.log("取得した位置情報:", {
         latitude,
         longitude,
-        heading,
+        heading: heading || "null",
         accuracy: accuracy ? `${Math.round(accuracy)}m` : "不明",
         timestamp: new Date(position.timestamp).toLocaleString(),
       });
@@ -170,6 +174,12 @@ const AppContent: React.FC = () => {
           // デバイス方向イベントを一度だけ取得
           const orientationPromise = new Promise<number>((resolve) => {
             const handleOrientation = (event: DeviceOrientationEvent) => {
+              console.log("DeviceOrientation取得:", {
+                alpha: event.alpha,
+                beta: event.beta,
+                gamma: event.gamma,
+                absolute: event.absolute,
+              });
               const alpha = event.alpha; // コンパス方向
               window.removeEventListener('deviceorientation', handleOrientation);
               resolve(alpha || 0);
@@ -177,11 +187,13 @@ const AppContent: React.FC = () => {
             window.addEventListener('deviceorientation', handleOrientation);
             // 3秒後にタイムアウト
             setTimeout(() => {
+              console.log("DeviceOrientation タイムアウト");
               window.removeEventListener('deviceorientation', handleOrientation);
               resolve(deviceHeading);
             }, 3000);
           });
           deviceHeading = await orientationPromise;
+          console.log("最終的なdeviceHeading:", deviceHeading);
         } catch (err) {
           console.log("デバイス方向の取得をスキップ:", err);
         }
@@ -201,6 +213,11 @@ const AppContent: React.FC = () => {
   // 現在位置マーカーのフェードアウト完了
   const handleCurrentLocationFadeComplete = () => {
     setCurrentLocationMarker(null);
+  };
+
+  // ルートオーバーレイの拡張状態をトグル
+  const handleToggleRouteOverlayExpanded = () => {
+    setIsRouteOverlayExpanded(!isRouteOverlayExpanded);
   };
 
   // マップをルートに合わせてフィット
@@ -272,33 +289,34 @@ const AppContent: React.FC = () => {
     }
   };
 
+  // 距離計算関数を外部に分離
+  const calculateTotalDistance = (points: RoutePoint[]) => {
+    let totalDistance = 0;
+    for (let i = 1; i < points.length; i++) {
+      const R = 6371000; // 地球の半径（メートル）
+      const dLat = ((points[i].lat - points[i - 1].lat) * Math.PI) / 180;
+      const dLng = ((points[i].lng - points[i - 1].lng) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((points[i - 1].lat * Math.PI) / 180) *
+          Math.cos((points[i].lat * Math.PI) / 180) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      totalDistance += R * c;
+    }
+    return totalDistance;
+  };
+
   // ルート保存処理
-  const handleSaveRoute = async (name: string, description?: string) => {
+  const handleSaveRoute = async (name: string, description?: string, customDuration?: number) => {
     try {
       // 手動作成モード時はeditableRouteを使用
       const routeToSave = editableRoute;
 
-      // 距離を再計算
-      const calculateTotalDistance = (points: RoutePoint[]) => {
-        let totalDistance = 0;
-        for (let i = 1; i < points.length; i++) {
-          const R = 6371000; // 地球の半径（メートル）
-          const dLat = ((points[i].lat - points[i - 1].lat) * Math.PI) / 180;
-          const dLng = ((points[i].lng - points[i - 1].lng) * Math.PI) / 180;
-          const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos((points[i - 1].lat * Math.PI) / 180) *
-              Math.cos((points[i].lat * Math.PI) / 180) *
-              Math.sin(dLng / 2) *
-              Math.sin(dLng / 2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          totalDistance += R * c;
-        }
-        return totalDistance;
-      };
-
       const distance = isManualMode ? calculateTotalDistance(editableRoute) : 0;
-      const duration = isManualMode ? 0 : 0; // 手動作成時は時間なし
+      // customDurationが渡された場合は手動入力された時間を使用、それ以外は0
+      const duration = customDuration !== undefined ? customDuration : (isManualMode ? 0 : 0);
 
       await saveRoute(name, description, routeToSave, distance, duration);
 
@@ -323,8 +341,8 @@ const AppContent: React.FC = () => {
     }
   };
 
-  // 保存済みルートを読み込み
-  const handleLoadRoute = (route: RunningRoute) => {
+  // ルート選択処理（onSelectRoute）
+  const handleSelectRoute = (route: RunningRoute) => {
     // GeoJSON LineStringをRoutePointに変換
     const routePoints: RoutePoint[] = route.route_data.coordinates.map((coord, index) => ({
       lat: coord[1],
@@ -333,19 +351,31 @@ const AppContent: React.FC = () => {
       accuracy: route.elevation_data?.[index] || 5,
     }));
 
-    // 既に選択されているルートの場合は、マップビューを移動
+    // 選択されたルートが現在選択中のルートと同じ場合：編集モードと通常表示モードを交互に切り替え
     if (selectedRouteId === route.id) {
-      fitMapToRoute(routePoints);
+      if (isEditMode) {
+        // 現在編集モードの場合：編集モードを終了して通常表示モードに移行
+        setIsEditMode(false);
+        setEditableRoute([]);
+        // selectedRouteIdとloadedRouteは保持してルートを通常表示モードで表示
+      } else {
+        // 現在通常表示モードの場合：編集モードに切り替え
+        setIsEditMode(true);
+        setEditableRoute([...loadedRoute]); // loadedRouteの内容をeditableRouteにコピー
+      }
+      setIsManualMode(false);
       return;
     }
 
-    setSelectedRouteId(route.id); // 選択されたルートIDを設定
-    setIsEditMode(false); // 編集モード無効
-    setIsManualMode(false); // 新規手動作成モードもキャンセル
-
-    // 選択されたルートデータは常に保持（編集のため）
+    // 選択されたルートが異なる場合：そのルートを編集モードで表示
+    setSelectedRouteId(route.id);
+    setIsEditMode(true); // 編集モード有効
+    setIsManualMode(false); // 新規手動作成モードはキャンセル
     setLoadedRoute(routePoints);
-    setEditableRoute([...routePoints]);
+    setEditableRoute([...routePoints]); // 編集可能な状態で設定
+
+    // マップビューをルートに合わせて移動
+    fitMapToRoute(routePoints);
   };
 
   // ルートの表示/非表示を切り替える
@@ -457,25 +487,38 @@ const AppContent: React.FC = () => {
     showToast(`「${route.name}」をコピーしました！編集して保存してください。`, "success");
   };
 
-  // 編集モード開始
-  const startEditMode = (route?: RunningRoute) => {
-    if (route) {
-      // ルートが指定された場合は先に読み込む
-      handleLoadRoute(route);
-      // 少し遅延させて読み込み完了を待つ
-      setTimeout(() => {
-        setIsManualMode(false);
-        setIsEditMode(true);
-      }, 100);
-    } else if (loadedRoute.length > 0) {
-      // 手動作成モードを終了
-      setIsManualMode(false);
+  // ルート編集処理（モーダル表示）
+  const handleEditRoute = async (routeId: string, updates: { name?: string; description?: string; duration?: number }) => {
+    try {
+      // updateRunningRouteを直接インポートして使用
+      const { updateRunningRoute } = await import('./lib/supabase');
+      
+      // 更新データを準備
+      const updateData: any = {};
+      if (updates.name !== undefined) updateData.name = updates.name;
+      if (updates.description !== undefined) updateData.description = updates.description;
+      if (updates.duration !== undefined) updateData.duration = Math.floor(updates.duration / 1000); // ミリ秒を秒に変換
 
-      // 現在表示中のルートを編集対象とする
-      setEditableRoute([...loadedRoute]);
-      setIsEditMode(true);
-      // 編集時は個別表示に切り替え
+      // Supabaseでルートを更新
+      await updateRunningRoute(routeId, updateData);
+
+      // オーバーレイのルート一覧を更新
+      const updatedRoutes = await loadUserRoutes();
+      setSavedRoutes(updatedRoutes);
+
+      showToast('ルートが正常に更新されました！', 'success');
+    } catch (error) {
+      console.error('ルート更新エラー:', error);
+      showToast('ルートの更新に失敗しました。もう一度お試しください。', 'error');
+      throw error;
     }
+  };
+
+
+  // EditRouteModalを開く
+  const handleOpenEditModal = (route: RunningRoute) => {
+    setEditingRoute(route);
+    setShowEditModal(true);
   };
 
   // 編集モード終了
@@ -490,24 +533,6 @@ const AppContent: React.FC = () => {
 
     try {
       // 編集されたルートの距離を再計算
-      const calculateTotalDistance = (points: RoutePoint[]) => {
-        let totalDistance = 0;
-        for (let i = 1; i < points.length; i++) {
-          const R = 6371000; // 地球の半径（メートル）
-          const dLat = ((points[i].lat - points[i - 1].lat) * Math.PI) / 180;
-          const dLng = ((points[i].lng - points[i - 1].lng) * Math.PI) / 180;
-          const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos((points[i - 1].lat * Math.PI) / 180) *
-              Math.cos((points[i].lat * Math.PI) / 180) *
-              Math.sin(dLng / 2) *
-              Math.sin(dLng / 2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          totalDistance += R * c;
-        }
-        return totalDistance;
-      };
-
       const newDistance = calculateTotalDistance(editableRoute);
       const estimatedDuration = Math.floor(newDistance / 3); // 推定時間（秒）
 
@@ -959,7 +984,7 @@ const AppContent: React.FC = () => {
                   allRoutes={allRoutes}
                   visibleRoutes={visibleRoutes}
                   selectedRouteId={selectedRouteId}
-                  onRouteSelect={handleLoadRoute}
+                  onRouteSelect={handleSelectRoute}
                   currentLocationMarker={currentLocationMarker}
                   onCurrentLocationFadeComplete={handleCurrentLocationFadeComplete}
                 />
@@ -988,8 +1013,8 @@ const AppContent: React.FC = () => {
             <RouteOverlay
               routes={savedRoutes}
               selectedRouteId={selectedRouteId}
-              onSelectRoute={handleLoadRoute}
-              onEditRoute={startEditMode}
+              onSelectRoute={handleSelectRoute}
+              onEditRoute={handleOpenEditModal}
               onDeleteRoute={handleRouteDelete}
               onToggleAllRoutes={toggleAllRoutesVisibility}
               onStartManualCreation={handleStartManualCreation}
@@ -997,6 +1022,8 @@ const AppContent: React.FC = () => {
               onStartRouteCopy={handleRouteCopy}
               visibleRoutes={visibleRoutes}
               onToggleRouteVisibility={toggleRouteVisibility}
+              isExpanded={isRouteOverlayExpanded}
+              onToggleExpanded={handleToggleRouteOverlayExpanded}
             />
           </div>
         </div>
@@ -1035,7 +1062,7 @@ const AppContent: React.FC = () => {
         isOpen={showSaveModal}
         onClose={() => setShowSaveModal(false)}
         onSave={handleSaveRoute}
-        distance={0}
+        distance={isManualMode ? calculateTotalDistance(editableRoute) : 0}
         duration={0}
         isLoading={isSaving}
       />
@@ -1050,6 +1077,18 @@ const AppContent: React.FC = () => {
 
       {/* ログインモーダル */}
       <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
+
+      {/* ルート編集モーダル */}
+      <EditRouteModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditingRoute(null);
+        }}
+        onSave={handleEditRoute}
+        route={editingRoute}
+        isLoading={isSaving}
+      />
     </div>
   );
 };

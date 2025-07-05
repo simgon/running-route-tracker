@@ -10,17 +10,17 @@ import {
   Tooltip,
 } from "@mui/material";
 import {
-  FolderOpen as FolderIcon,
   Visibility as ViewAllIcon,
   VisibilityOff,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Add as AddIcon,
-  SmartToy as AIIcon,
   ContentCopy as CopyIcon,
-  Create as CreateIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
+  KeyboardArrowUp,
+  KeyboardArrowDown,
+  Timeline,
+  Schedule as TimeIcon,
 } from "@mui/icons-material";
 import { RunningRoute } from "../lib/supabase";
 
@@ -36,6 +36,8 @@ interface RouteOverlayProps {
   onStartRouteCopy?: (route: RunningRoute) => void;
   visibleRoutes?: Set<string>;
   onToggleRouteVisibility?: (routeId: string) => void;
+  isExpanded?: boolean;
+  onToggleExpanded?: () => void;
 }
 
 const RouteOverlay: React.FC<RouteOverlayProps> = ({
@@ -50,6 +52,8 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
   onStartRouteCopy,
   visibleRoutes = new Set(),
   onToggleRouteVisibility,
+  isExpanded = false,
+  onToggleExpanded,
 }) => {
   const isMobile = window.innerWidth <= 768;
   const [isDragging, setIsDragging] = React.useState(false);
@@ -64,15 +68,11 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
   };
 
   const formatDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
 
-    if (hours > 0) {
-      return `${hours}:${(minutes % 60).toString().padStart(2, "0")}:${(seconds % 60)
-        .toString()
-        .padStart(2, "0")}`;
-    }
-    return `${minutes}:${(seconds % 60).toString().padStart(2, "0")}`;
+    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
   // 選択されたルートにスクロール
@@ -114,31 +114,26 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
         bottom: 20,
         left: "50%",
         transform: "translateX(-50%)",
-        width: "90%",
+        width: isExpanded ? "95%" : "90%",
         zIndex: 1000,
         backgroundColor: "rgba(255, 255, 255, 0.3)",
         borderRadius: 3,
         p: 2,
         boxShadow: 4,
         backdropFilter: "blur(10px)",
-        maxHeight: 180,
+        maxHeight: isExpanded ? "50vh" : 180, // 拡張時は画面の半分
       }}
     >
       <Box
         sx={{
           display: "flex",
           alignItems: "center",
-          gap: 1.5,
+          justifyContent: "center",
           mb: 1.5,
+          position: "relative",
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <FolderIcon color="primary" />
-          <Typography variant="body1" fontWeight="bold" color="text.primary">
-            保存済みルート ({routes.length}個)
-          </Typography>
-        </Box>
-
+        {/* 全表示ボタン - 左 */}
         {routes.length > 1 && onToggleAllRoutes && (
           <Button
             variant={visibleRoutes.size === routes.length ? "contained" : "outlined"}
@@ -150,62 +145,94 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               textTransform: "none",
               fontWeight: "bold",
               fontSize: "0.75rem",
+              position: "absolute",
+              left: 0,
             }}
           >
             {visibleRoutes.size === routes.length ? "全非表示" : "全表示"}
           </Button>
+        )}
+
+        {/* 拡張ボタン - 中央 */}
+        {onToggleExpanded && (
+          <IconButton
+            onClick={onToggleExpanded}
+            size="small"
+            sx={{
+              backgroundColor: "rgba(255, 255, 255, 0.8)",
+              "&:hover": {
+                backgroundColor: "rgba(255, 255, 255, 0.9)",
+              },
+            }}
+          >
+            {isExpanded ? <KeyboardArrowDown /> : <KeyboardArrowUp />}
+          </IconButton>
         )}
       </Box>
 
       <Box
         ref={scrollContainerRef}
         sx={{
-          display: "flex",
+          display: isExpanded ? "grid" : "flex",
+          gridTemplateColumns: isExpanded
+            ? `repeat(auto-fill, minmax(${isMobile ? "150px" : "200px"}, 1fr))`
+            : undefined,
           gap: 1.5,
-          overflowX: "auto",
+          overflowX: isExpanded ? "visible" : "auto",
+          overflowY: isExpanded ? "auto" : "visible",
           pb: 1,
           scrollbarWidth: "none", // Firefox
           msOverflowStyle: "none", // IE/Edge
-          cursor: "grab",
+          cursor: isExpanded ? "default" : "grab",
+          maxHeight: isExpanded ? "calc(50vh - 100px)" : undefined, // ヘッダー分を除く
+          // デスクトップでのグリッド表示時の重複を防ぐ
+          ...(isExpanded && {
+            overflow: "auto",
+            height: "calc(50vh - 100px)",
+          }),
         }}
         className="route-scroll-container"
-        onMouseDown={(e) => {
-          const container = e.currentTarget;
-          const startX = e.pageX - container.offsetLeft;
-          const scrollLeft = container.scrollLeft;
+        onMouseDown={
+          !isExpanded
+            ? (e) => {
+                const container = e.currentTarget;
+                const startX = e.pageX - container.offsetLeft;
+                const scrollLeft = container.scrollLeft;
 
-          container.style.cursor = "grabbing";
+                container.style.cursor = "grabbing";
 
-          const handleMouseMove = (e: MouseEvent) => {
-            setIsDragging(true);
-            const x = e.pageX - container.offsetLeft;
-            const walk = (x - startX) * 2; // スクロール速度調整
-            container.scrollLeft = scrollLeft - walk;
-          };
+                const handleMouseMove = (e: MouseEvent) => {
+                  setIsDragging(true);
+                  const x = e.pageX - container.offsetLeft;
+                  const walk = (x - startX) * 2; // スクロール速度調整
+                  container.scrollLeft = scrollLeft - walk;
+                };
 
-          const handleMouseUp = () => {
-            container.style.cursor = "grab";
-            document.removeEventListener("mousemove", handleMouseMove);
-            document.removeEventListener("mouseup", handleMouseUp);
+                const handleMouseUp = () => {
+                  container.style.cursor = "grab";
+                  document.removeEventListener("mousemove", handleMouseMove);
+                  document.removeEventListener("mouseup", handleMouseUp);
 
-            // ドラッグ状態を少し遅延してリセット（クリックイベント抑制のため）
-            setTimeout(() => {
-              setIsDragging(false);
-            }, 100);
-          };
+                  // ドラッグ状態を少し遅延してリセット（クリックイベント抑制のため）
+                  setTimeout(() => {
+                    setIsDragging(false);
+                  }, 100);
+                };
 
-          document.addEventListener("mousemove", handleMouseMove);
-          document.addEventListener("mouseup", handleMouseUp);
-        }}
+                document.addEventListener("mousemove", handleMouseMove);
+                document.addEventListener("mouseup", handleMouseUp);
+              }
+            : undefined
+        }
       >
         {/* 新規ルート作成/コピーボタン */}
         {onStartManualCreation && (
           <div
             style={{
               minWidth: isMobile ? "155px" : "200px",
-              maxWidth: isMobile ? "200px" : "250px",
-              minHeight: isMobile ? "100px" : "120px",
-              maxHeight: isMobile ? "120px" : "140px",
+              maxWidth: isMobile ? "155px" : "250px",
+              minHeight: isMobile ? "100px" : "110px",
+              maxHeight: isMobile ? "120px" : "130px",
               backgroundColor: isCopyMode ? "#fff3e0" : "#e8f5e8",
               border: isCopyMode ? "2px dashed #ff9800" : "2px dashed #28a745",
               borderRadius: "8px",
@@ -304,9 +331,9 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
             }}
             style={{
               minWidth: isMobile ? "155px" : "200px",
-              maxWidth: isMobile ? "200px" : "250px",
-              minHeight: isMobile ? "100px" : "120px",
-              maxHeight: isMobile ? "120px" : "140px",
+              maxWidth: isMobile ? "155px" : "250px",
+              minHeight: isMobile ? "100px" : "110px",
+              maxHeight: isMobile ? "120px" : "130px",
               backgroundColor: "#e3f2fd",
               border: "2px dashed #2196f3",
               borderRadius: "8px",
@@ -366,10 +393,10 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                 }
               }}
               sx={{
-                minWidth: isMobile ? 170 : 200,
-                maxWidth: isMobile ? 200 : 250,
-                minHeight: isMobile ? 100 : 120,
-                maxHeight: isMobile ? 120 : 140,
+                minWidth: isMobile ? 155 : 200,
+                maxWidth: isMobile ? 155 : 250,
+                minHeight: isMobile ? 100 : 110,
+                maxHeight: isMobile ? 120 : 130,
                 backgroundColor: isCopyMode
                   ? "warning.light"
                   : isSelected
@@ -543,13 +570,13 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                   }}
                 >
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <Typography component="span">📏</Typography>
+                    <Timeline fontSize="small" color="action" />
                     <Typography variant="body2" color="text.secondary">
                       {formatDistance(route.distance)}
                     </Typography>
                   </Box>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <Typography component="span">⏱️</Typography>
+                    <TimeIcon fontSize="small" color="action" />
                     <Typography variant="body2" color="text.secondary">
                       {formatDuration(route.duration || 0)}
                     </Typography>
