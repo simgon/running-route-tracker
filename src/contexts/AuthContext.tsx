@@ -30,26 +30,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const anonymousId = localStorage.getItem('anonymous_user_id');
       if (anonymousId) {
-        console.log('Migrating routes from anonymous user:', anonymousId, 'to user:', user.id);
-        
-        const result = await migrateAnonymousRoutesToUser(user.id, anonymousId);
-        
-        if (result.migratedCount > 0) {
-          console.log(`Successfully migrated ${result.migratedCount} routes`);
+        // まず認証済みユーザーの既存ルート数を確認
+        const { data: existingRoutes, error: checkError } = await supabase
+          .from('running_routes')
+          .select('id')
+          .eq('user_id', user.id);
+
+        if (checkError) {
+          console.error('Error checking existing routes:', checkError);
+          return;
+        }
+
+        // 既存ルートが0件の場合のみ引き継ぎを実施
+        if (!existingRoutes || existingRoutes.length === 0) {
+          console.log('No existing routes found. Migrating routes from anonymous user:', anonymousId, 'to user:', user.id);
           
-          // 移行完了後、anonymous_user_idをクリア
-          localStorage.removeItem('anonymous_user_id');
+          const result = await migrateAnonymousRoutesToUser(user.id, anonymousId);
           
-          // 成功通知（オプション）
-          // showToast(`${result.migratedCount}個のルートを引き継ぎました`, 'success');
+          if (result.migratedCount > 0) {
+            console.log(`Successfully migrated ${result.migratedCount} routes`);
+            
+            // 移行完了後、anonymous_user_idをクリア
+            localStorage.removeItem('anonymous_user_id');
+          } else {
+            console.log('No routes to migrate');
+          }
         } else {
-          console.log('No routes to migrate');
+          console.log(`User already has ${existingRoutes.length} routes. Skipping migration.`);
+          // 既存ルートがある場合も匿名IDをクリア
+          localStorage.removeItem('anonymous_user_id');
         }
       }
     } catch (error) {
       console.error('Failed to migrate routes:', error);
-      // エラー通知（オプション）
-      // showToast('ルートの引き継ぎに失敗しました', 'error');
     }
   };
 

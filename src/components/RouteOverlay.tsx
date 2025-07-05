@@ -18,7 +18,9 @@ import {
   Add as AddIcon,
   SmartToy as AIIcon,
   ContentCopy as CopyIcon,
-  Create as CreateIcon
+  Create as CreateIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon
 } from '@mui/icons-material';
 import { RunningRoute } from "../lib/supabase";
 
@@ -28,11 +30,12 @@ interface RouteOverlayProps {
   onSelectRoute: (route: RunningRoute) => void;
   onEditRoute: (route: RunningRoute) => void;
   onDeleteRoute: (routeId: string, routeName: string) => void;
-  onToggleAllRoutes?: (routes: RunningRoute[]) => void;
-  showAllRoutes?: boolean;
+  onToggleAllRoutes?: () => void;
   onStartManualCreation?: () => void;
   onStartAIGeneration?: () => void;
   onStartRouteCopy?: (route: RunningRoute) => void;
+  visibleRoutes?: Set<string>;
+  onToggleRouteVisibility?: (routeId: string) => void;
 }
 
 const RouteOverlay: React.FC<RouteOverlayProps> = ({
@@ -42,10 +45,11 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
   onEditRoute,
   onDeleteRoute,
   onToggleAllRoutes,
-  showAllRoutes = false,
   onStartManualCreation,
   onStartAIGeneration,
   onStartRouteCopy,
+  visibleRoutes = new Set(),
+  onToggleRouteVisibility,
 }) => {
   const isMobile = window.innerWidth <= 768;
   const [isDragging, setIsDragging] = React.useState(false);
@@ -134,18 +138,18 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
 
         {routes.length > 1 && onToggleAllRoutes && (
           <Button
-            variant={showAllRoutes ? "contained" : "outlined"}
-            color={showAllRoutes ? "error" : "success"}
+            variant={visibleRoutes.size === routes.length ? "contained" : "outlined"}
+            color={visibleRoutes.size === routes.length ? "error" : "success"}
             size="small"
-            startIcon={showAllRoutes ? <VisibilityOff /> : <ViewAllIcon />}
-            onClick={() => onToggleAllRoutes(routes)}
+            startIcon={visibleRoutes.size === routes.length ? <VisibilityOff /> : <ViewAllIcon />}
+            onClick={onToggleAllRoutes}
             sx={{
               textTransform: "none",
               fontWeight: "bold",
               fontSize: "0.75rem",
             }}
           >
-            {showAllRoutes ? "個別表示" : "全表示"}
+            {visibleRoutes.size === routes.length ? "全非表示" : "全表示"}
           </Button>
         )}
       </Box>
@@ -218,34 +222,30 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
             }}
           >
             {/* 切り替えボタン */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (isDragging) return;
-                setIsCopyMode(!isCopyMode);
-              }}
-              style={{
-                position: "absolute",
-                top: "4px",
-                right: "4px",
-                width: "20px",
-                height: "20px",
-                borderRadius: "50%",
-                border: "1px solid",
-                borderColor: isCopyMode ? "#ff9800" : "#28a745",
-                backgroundColor: "white",
-                color: isCopyMode ? "#ff9800" : "#28a745",
-                cursor: "pointer",
-                fontSize: "10px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "all 0.2s",
-              }}
-              title={isCopyMode ? "手動作成モードに切り替え" : "コピーモードに切り替え"}
-            >
-              {isCopyMode ? "✏️" : "📋"}
-            </button>
+            <Tooltip title={isCopyMode ? "手動作成モードに切り替え" : "コピーモードに切り替え"}>
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isDragging) return;
+                  setIsCopyMode(!isCopyMode);
+                }}
+                sx={{
+                  position: "absolute",
+                  top: 4,
+                  right: 4,
+                  width: 24,
+                  height: 24,
+                  backgroundColor: isCopyMode ? "warning.main" : "success.main",
+                  color: "white",
+                  '&:hover': {
+                    backgroundColor: isCopyMode ? "warning.dark" : "success.dark",
+                  }
+                }}
+              >
+                {isCopyMode ? "✏️" : "📋"}
+              </IconButton>
+            </Tooltip>
 
             {/* メインボタンエリア */}
             <div
@@ -388,6 +388,37 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                 }
               }}
             >
+              {/* 表示/非表示ボタン */}
+              {!isCopyMode && onToggleRouteVisibility && (
+                <Tooltip title={visibleRoutes.has(route.id) ? "非表示にする" : "表示する"}>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleRouteVisibility(route.id);
+                    }}
+                    sx={{
+                      position: "absolute",
+                      top: 8,
+                      left: 8,
+                      width: 24,
+                      height: 24,
+                      backgroundColor: visibleRoutes.has(route.id) ? "success.main" : "grey.400",
+                      color: "white",
+                      '&:hover': {
+                        backgroundColor: visibleRoutes.has(route.id) ? "success.dark" : "grey.600",
+                      }
+                    }}
+                  >
+                    {visibleRoutes.has(route.id) ? (
+                      <VisibilityIcon fontSize="small" />
+                    ) : (
+                      <VisibilityOffIcon fontSize="small" />
+                    )}
+                  </IconButton>
+                </Tooltip>
+              )}
+
               {/* コピーモードインジケーター */}
               {isCopyMode && (
                 <Chip
@@ -407,62 +438,64 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               )}
 
               {/* アクションボタン */}
-              <Box
-                className="action-buttons"
-                sx={{
-                  position: "absolute",
-                  top: 8,
-                  right: 8,
-                  display: "flex",
-                  gap: 0.5,
-                  opacity: 0,
-                  visibility: 'hidden',
-                  transition: 'opacity 0.2s ease, visibility 0.2s ease',
-                }}
-              >
-                <Tooltip title="編集">
-                  <IconButton
-                    size="small"
-                    color="warning"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEditRoute(route);
-                    }}
-                    sx={{
-                      width: 24,
-                      height: 24,
-                      backgroundColor: "warning.main",
-                      color: "white",
-                      '&:hover': {
-                        backgroundColor: "warning.dark",
-                      }
-                    }}
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="削除">
-                  <IconButton
-                    size="small"
-                    color="error"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteRoute(route.id, route.name);
-                    }}
-                    sx={{
-                      width: 24,
-                      height: 24,
-                      backgroundColor: "error.main",
-                      color: "white",
-                      '&:hover': {
-                        backgroundColor: "error.dark",
-                      }
-                    }}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
+              {!isCopyMode && (
+                <Box
+                  className="action-buttons"
+                  sx={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    display: "flex",
+                    gap: 0.5,
+                    opacity: 0,
+                    visibility: 'hidden',
+                    transition: 'opacity 0.2s ease, visibility 0.2s ease',
+                  }}
+                >
+                  <Tooltip title="編集">
+                    <IconButton
+                      size="small"
+                      color="warning"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEditRoute(route);
+                      }}
+                      sx={{
+                        width: 24,
+                        height: 24,
+                        backgroundColor: "warning.main",
+                        color: "white",
+                        '&:hover': {
+                          backgroundColor: "warning.dark",
+                        }
+                      }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="削除">
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteRoute(route.id, route.name);
+                      }}
+                      sx={{
+                        width: 24,
+                        height: 24,
+                        backgroundColor: "error.main",
+                        color: "white",
+                        '&:hover': {
+                          backgroundColor: "error.dark",
+                        }
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              )}
 
               {/* ルート情報 */}
               <CardContent sx={{ 
@@ -512,12 +545,6 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                     <Typography component="span">⏱️</Typography>
                     <Typography variant="body2" color="text.secondary">
                       {formatDuration(route.duration || 0)}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <Typography component="span">📍</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {route.route_data.coordinates?.length || 0}ポイント
                     </Typography>
                   </Box>
                 </Box>

@@ -20,7 +20,7 @@ interface GoogleMapProps {
   onDragStart?: () => void;
   onDragEnd?: () => void;
   allRoutes?: RunningRoute[];
-  showAllRoutes?: boolean;
+  visibleRoutes?: Set<string>;
   selectedRouteId?: string;
   onRouteSelect?: (route: RunningRoute) => void;
 }
@@ -42,7 +42,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   onDragStart,
   onDragEnd,
   allRoutes = [],
-  showAllRoutes = false,
+  visibleRoutes = new Set(),
   selectedRouteId,
   onRouteSelect,
 }) => {
@@ -62,7 +62,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   const isDraggingRef = useRef<boolean>(false);
   const dragStartPositionRef = useRef<{ x: number; y: number } | null>(null);
   const zoomListenerRef = useRef<google.maps.MapsEventListener | null>(null);
-  const prevShowAllRoutesRef = useRef<boolean>(showAllRoutes);
+  const prevVisibleRoutesRef = useRef<Set<string>>(visibleRoutes);
+
 
   useEffect(() => {
     if (ref.current && !mapRef.current) {
@@ -90,8 +91,13 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         streetViewControlOptions: {
           position: google.maps.ControlPosition.TOP_RIGHT,
         },
+        myLocationControlOptions: {
+          position: google.maps.ControlPosition.TOP_RIGHT,
+        },
+        myLocationEnabled: true, // 青い丸と方向表示を有効化
+        myLocationControl: true, // 現在位置ボタンを有効化
         gestureHandling: "greedy", // ジェスチャー操作を許可
-      });
+      } as google.maps.MapOptions);
 
       // 編集モード時に右クリックコンテキストメニューを無効化
       if (isEditMode) {
@@ -99,6 +105,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           e.stop();
         });
       }
+
 
       // マップ準備完了をコールバック
       if (onMapReady) {
@@ -185,26 +192,26 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
   // ユーザー位置でマップの中心を移動
   useEffect(() => {
-    if (mapRef.current && userPosition && !isRecording && !isEditMode && !isDemoMode && !selectedRouteId && !showAllRoutes) {
+    if (mapRef.current && userPosition && !isRecording && !isEditMode && !isDemoMode && !selectedRouteId && visibleRoutes.size === 0) {
       mapRef.current.panTo(userPosition);
     }
-  }, [userPosition, isRecording, isEditMode, isDemoMode, selectedRouteId, showAllRoutes]);
+  }, [userPosition, isRecording, isEditMode, isDemoMode, selectedRouteId, visibleRoutes]);
 
   // ルート変更時の地図位置調整（編集モード・手動作成モード時は無効）
   useEffect(() => {
     // 全表示から個別表示への切り替えかどうかをチェック
-    const wasShowingAllRoutes = prevShowAllRoutesRef.current;
-    const isChangingFromAllToSingle = wasShowingAllRoutes && !showAllRoutes;
+    const wasShowingRoutes = prevVisibleRoutesRef.current.size > 0;
+    const isChangingFromAllToSingle = wasShowingRoutes && visibleRoutes.size === 0;
     
     // 前回の状態を更新
-    prevShowAllRoutesRef.current = showAllRoutes;
+    prevVisibleRoutesRef.current = visibleRoutes;
     
     // 全表示から個別表示への切り替え時は移動しない
     if (isChangingFromAllToSingle) {
       return;
     }
     
-    if (mapRef.current && routePoints.length > 0 && !showAllRoutes && !isEditMode && !isDemoMode) {
+    if (mapRef.current && routePoints.length > 0 && visibleRoutes.size === 0 && !isEditMode && !isDemoMode) {
       // ルートの境界を計算
       const bounds = new google.maps.LatLngBounds();
       routePoints.forEach((point) => {
@@ -219,7 +226,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         right: 40,
       });
     }
-  }, [routePoints, showAllRoutes, selectedRouteId, isEditMode, isDemoMode]);
+  }, [routePoints, visibleRoutes, selectedRouteId, isEditMode, isDemoMode]);
 
   // ランニングルートの描画
   useEffect(() => {
@@ -295,7 +302,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   useEffect(() => {
     // 表示すべき状態かチェック（全ルート表示時は個別ルートのピン・ラベルを非表示）
     const shouldShowMarkersAndLabels =
-      (isEditMode || isDemoMode || routePoints.length > 0) && !showAllRoutes;
+      (isEditMode || isDemoMode || routePoints.length > 0) && visibleRoutes.size === 0;
 
     if (!shouldShowMarkersAndLabels) {
       routeMarkersRef.current.forEach((marker) => marker.setMap(null));
@@ -814,7 +821,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         distanceLabelsRef.current.push(distanceLabel);
       });
     }
-  }, [routePoints, isEditMode, isDemoMode, showAllRoutes, zoomTrigger]);
+  }, [routePoints, isEditMode, isDemoMode, visibleRoutes, zoomTrigger]);
 
   // 全ルート表示機能
   useEffect(() => {
@@ -830,7 +837,11 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
     // 全ルート表示のON/OFF切り替え時の処理
 
-    if (showAllRoutes && allRoutes.length > 0) {
+    if (visibleRoutes.size > 0 && allRoutes.length > 0) {
+      // visibleRoutesに含まれるルートのみを表示
+      const routesToDisplay = allRoutes.filter(route => visibleRoutes.has(route.id));
+      
+      routesToDisplay.forEach((route, routeIndex) => {
       // 距離計算関数
       const calculateDistance = (
         lat1: number,
@@ -858,7 +869,6 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         return `${(meters / 1000).toFixed(2)}km`;
       };
 
-      allRoutes.forEach((route, routeIndex) => {
         if (route.route_data?.coordinates) {
           const path = route.route_data.coordinates.map((coord) => ({
             lat: coord[1],
@@ -1006,7 +1016,9 @@ const MapComponent: React.FC<GoogleMapProps> = ({
       // 全ルート表示時のマップ移動は無効化
       // ユーザーが手動で表示範囲を調整できるように変更
     }
-  }, [showAllRoutes, allRoutes, selectedRouteId, zoomTrigger]);
+  }, [visibleRoutes, allRoutes, selectedRouteId, zoomTrigger]);
+
+  // 現在位置アイコンの表示制御
 
   return (
     <div
@@ -1035,9 +1047,11 @@ interface GoogleMapWrapperProps {
   onDragStart?: () => void;
   onDragEnd?: () => void;
   allRoutes?: RunningRoute[];
-  showAllRoutes?: boolean;
+  visibleRoutes?: Set<string>;
   selectedRouteId?: string;
   onRouteSelect?: (route: RunningRoute) => void;
+  showLocationIcon?: boolean;
+  userHeading?: number;
 }
 
 const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
@@ -1058,7 +1072,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
   onDragStart,
   onDragEnd,
   allRoutes,
-  showAllRoutes,
+  visibleRoutes,
   selectedRouteId,
   onRouteSelect,
 }) => {
@@ -1087,7 +1101,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
             allRoutes={allRoutes}
-            showAllRoutes={showAllRoutes}
+            visibleRoutes={visibleRoutes}
             selectedRouteId={selectedRouteId}
             onRouteSelect={onRouteSelect}
           />
@@ -1116,7 +1130,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         allRoutes={allRoutes}
-        showAllRoutes={showAllRoutes}
+        visibleRoutes={visibleRoutes}
         selectedRouteId={selectedRouteId}
         onRouteSelect={onRouteSelect}
       />

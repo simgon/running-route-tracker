@@ -5,6 +5,7 @@ export interface CustomGeolocationPosition {
   lng: number;
   accuracy: number;
   timestamp: number;
+  heading?: number; // 方向（度数、北が0）
 }
 
 export interface GeolocationError {
@@ -33,7 +34,8 @@ export const useGeolocation = (): UseGeolocationReturn => {
       lat: pos.coords.latitude,
       lng: pos.coords.longitude,
       accuracy: pos.coords.accuracy,
-      timestamp: pos.timestamp
+      timestamp: pos.timestamp,
+      heading: pos.coords.heading || undefined // 方向情報（nullの場合はundefined）
     };
     setPosition(newPosition);
     setError(null);

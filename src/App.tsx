@@ -1,16 +1,15 @@
 import React, { useEffect, useState, useRef } from "react";
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
+import { ThemeProvider, createTheme } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import { DirectionsRun, Person } from "@mui/icons-material";
 import GoogleMap from "./components/GoogleMap";
 import SaveRouteModal from "./components/SaveRouteModal";
-import RouteListSidebar, { RouteListSidebarRef } from "./components/RouteListSidebar";
 import RouteOverlay from "./components/RouteOverlay";
 import AIRouteOptimizer from "./components/AIRouteOptimizer";
 import LoginModal from "./components/LoginModal";
 import UserProfile from "./components/UserProfile";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { useGeolocation } from "./hooks/useGeolocation";
-import { useRunningRoute } from "./hooks/useRunningRoute";
 import { useRouteStorage } from "./hooks/useRouteStorage";
 import { RunningRoute } from "./lib/supabase";
 import { RoutePoint } from "./hooks/useRunningRoute";
@@ -20,28 +19,25 @@ import "./App.css";
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#1976d2',
+      main: "#1976d2",
     },
     secondary: {
-      main: '#dc004e',
+      main: "#dc004e",
     },
   },
   typography: {
-    fontFamily: 'Roboto, Arial, sans-serif',
+    fontFamily: "Roboto, Arial, sans-serif",
   },
 });
 
 const AppContent: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
   const [previousUser, setPreviousUser] = useState<typeof user>(null);
-  const { position, error, loading, startTracking, stopTracking, isTracking } = useGeolocation();
-  const { routeState, startRecording, pauseRecording, resumeRecording, clearRoute, addPoint } =
-    useRunningRoute();
+  const { position, error, loading } = useGeolocation();
   const {
     saveRoute,
     updateRoute,
     deleteRoute,
-    updateRouteName,
     loadUserRoutes,
     isLoading: isSaving,
   } = useRouteStorage();
@@ -51,19 +47,15 @@ const AppContent: React.FC = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editableRoute, setEditableRoute] = useState<RoutePoint[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string | undefined>();
-  const routeListRef = useRef<RouteListSidebarRef>(null);
   const [allRoutes, setAllRoutes] = useState<RunningRoute[]>([]);
-  const [showAllRoutes, setShowAllRoutes] = useState(false);
   const [savedRoutes, setSavedRoutes] = useState<RunningRoute[]>([]);
+  const [visibleRoutes, setVisibleRoutes] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [toastMessage, setToastMessage] = useState<{
     message: string;
     type: "success" | "error";
   } | null>(null);
   const [showAIOptimizer, setShowAIOptimizer] = useState(false);
-  const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
-  const [editingRouteName, setEditingRouteName] = useState("");
   const [showLoginModal, setShowLoginModal] = useState(false);
   const mapRef = useRef<google.maps.Map | null>(null);
 
@@ -81,13 +73,14 @@ const AppContent: React.FC = () => {
 
   // マップオーバーレイボタンの共通スタイル
   const overlayButtonStyle = {
-    padding: "10px 20px",
+    padding: "8px 16px",
     border: "none",
-    borderRadius: "5px",
+    borderRadius: "4px",
     cursor: "pointer",
-    fontWeight: "bold",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+    fontWeight: "normal",
+    boxShadow: "none",
     color: "white",
+    fontSize: "14px",
   } as const;
 
   const getButtonStyle = (bgColor: string) => ({
@@ -108,7 +101,7 @@ const AppContent: React.FC = () => {
     if (!mapRef.current || routePoints.length === 0) return;
 
     const bounds = new google.maps.LatLngBounds();
-    routePoints.forEach(point => {
+    routePoints.forEach((point) => {
       bounds.extend(new google.maps.LatLng(point.lat, point.lng));
     });
 
@@ -126,13 +119,6 @@ const AppContent: React.FC = () => {
     mapRef.current = map;
   };
 
-  // GPS位置が更新されたらルートに追加（手動モードでない場合）
-  useEffect(() => {
-    if (position && routeState.isRecording && !isManualMode) {
-      addPoint(position);
-    }
-  }, [position, routeState.isRecording, addPoint, isManualMode]);
-
   // 地図クリック処理：手動モードまたは編集モード
   const handleMapClick = (lat: number, lng: number) => {
     console.log("handleMapClick called at:", lat, lng, "isDragging:", isDragging);
@@ -143,15 +129,14 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    if (isManualMode && routeState.isRecording) {
-      // 手動モード：クリックでポイント追加（editableRouteも同時更新）
+    if (isManualMode) {
+      // 手動モード：クリックでポイント追加
       const manualPosition = {
         lat,
         lng,
         accuracy: 5, // 高精度設定
         timestamp: Date.now(),
       };
-      addPoint(manualPosition);
       setEditableRoute((prevRoute) => [...prevRoute, manualPosition]);
     } else if (isEditMode) {
       // 編集モード：クリックでピンを追加
@@ -165,87 +150,18 @@ const AppContent: React.FC = () => {
     }
   };
 
-  // 距離をフォーマット
-  const formatDistance = (meters: number) => {
-    if (meters < 1000) {
-      return `${meters.toFixed(0)}m`;
-    }
-    return `${(meters / 1000).toFixed(2)}km`;
-  };
-
-  // 時間をフォーマット
-  const formatDuration = (ms: number) => {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-
-    if (hours > 0) {
-      return `${hours}:${(minutes % 60).toString().padStart(2, "0")}:${(seconds % 60)
-        .toString()
-        .padStart(2, "0")}`;
-    }
-    return `${minutes}:${(seconds % 60).toString().padStart(2, "0")}`;
-  };
-
-  // ペースを計算（分/km）
-  const calculatePace = () => {
-    if (routeState.distance === 0 || routeState.duration === 0) return "--:--";
-    const kmDistance = routeState.distance / 1000;
-    const minutesDuration = routeState.duration / 60000;
-    const pace = minutesDuration / kmDistance;
-    const paceMinutes = Math.floor(pace);
-    const paceSeconds = Math.floor((pace - paceMinutes) * 60);
-    return `${paceMinutes}:${paceSeconds.toString().padStart(2, "0")}`;
-  };
-
   // 末尾のピンを削除する機能
   const handleRemoveLastPin = () => {
     if (isEditMode) {
       // 編集モード：editableRouteから末尾を削除
       if (editableRoute.length > 0) {
-        setEditableRoute(prev => prev.slice(0, -1));
+        setEditableRoute((prev) => prev.slice(0, -1));
       }
     } else if (isManualMode) {
       // 手動モード：editableRouteから末尾を削除
       if (editableRoute.length > 0) {
-        setEditableRoute(prev => prev.slice(0, -1));
+        setEditableRoute((prev) => prev.slice(0, -1));
       }
-    }
-  };
-
-  // ルート名編集開始
-  const handleStartEditRouteName = (route: RunningRoute) => {
-    setEditingRouteId(route.id);
-    setEditingRouteName(route.name);
-  };
-
-  // ルート名編集キャンセル
-  const handleCancelEditRouteName = () => {
-    setEditingRouteId(null);
-    setEditingRouteName("");
-  };
-
-  // ルート名保存
-  const handleSaveRouteName = async (routeId: string) => {
-    if (!editingRouteName.trim()) {
-      showToast("ルート名を入力してください", "error");
-      return;
-    }
-
-    try {
-      await updateRouteName(routeId, editingRouteName.trim());
-      
-      // ルート一覧を更新
-      const updatedRoutes = await loadUserRoutes();
-      setSavedRoutes(updatedRoutes);
-      setAllRoutes(updatedRoutes);
-      
-      setEditingRouteId(null);
-      setEditingRouteName("");
-      showToast("ルート名を更新しました", "success");
-    } catch (error) {
-      console.error("ルート名の更新に失敗しました:", error);
-      showToast("ルート名の更新に失敗しました", "error");
     }
   };
 
@@ -253,7 +169,7 @@ const AppContent: React.FC = () => {
   const handleSaveRoute = async (name: string, description?: string) => {
     try {
       // 手動作成モード時はeditableRouteを使用
-      const routeToSave = isManualMode ? editableRoute : routeState.route;
+      const routeToSave = editableRoute;
 
       // 距離を再計算
       const calculateTotalDistance = (points: RoutePoint[]) => {
@@ -274,29 +190,23 @@ const AppContent: React.FC = () => {
         return totalDistance;
       };
 
-      const distance = isManualMode ? calculateTotalDistance(editableRoute) : routeState.distance;
-      const duration = isManualMode ? 0 : routeState.duration; // 手動作成時は時間なし
+      const distance = isManualMode ? calculateTotalDistance(editableRoute) : 0;
+      const duration = isManualMode ? 0 : 0; // 手動作成時は時間なし
 
       await saveRoute(name, description, routeToSave, distance, duration);
-
-      // サイドバーのルート一覧を更新
-      if (routeListRef.current) {
-        await routeListRef.current.refreshRoutes();
-      }
 
       // オーバーレイのルート一覧を更新
       try {
         const updatedRoutes = await loadUserRoutes();
         setSavedRoutes(updatedRoutes);
       } catch (error) {
-        console.error('ルート一覧更新エラー:', error);
+        console.error("ルート一覧更新エラー:", error);
       }
 
       // 保存成功のトースト表示
       showToast("ルートが正常に保存されました！", "success");
 
       // 保存成功後はルートをクリア
-      clearRoute();
       setLoadedRoute([]);
       setEditableRoute([]);
       setIsManualMode(false); // 手動作成モード終了
@@ -323,7 +233,6 @@ const AppContent: React.FC = () => {
     }
 
     setSelectedRouteId(route.id); // 選択されたルートIDを設定
-    clearRoute(); // 現在の記録をクリア
     setIsEditMode(false); // 編集モード無効
     setIsManualMode(false); // 新規手動作成モードもキャンセル
 
@@ -332,22 +241,28 @@ const AppContent: React.FC = () => {
     setEditableRoute([...routePoints]);
   };
 
-  // 全ルート表示のON/OFF切り替え
-  const handleToggleAllRoutes = (routes: RunningRoute[]) => {
-    setAllRoutes(routes);
-    const newShowAllRoutes = !showAllRoutes;
-    setShowAllRoutes(newShowAllRoutes);
-    setIsEditMode(false);
-    setIsManualMode(false); // 新規手動作成モードもキャンセル
-    clearRoute();
-
-    // 選択されたルートのデータは常に保持（編集のため）
-    // 表示の制御はroutePointsプロパティで行う
+  // ルートの表示/非表示を切り替える
+  const toggleRouteVisibility = (routeId: string) => {
+    setVisibleRoutes((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(routeId)) {
+        newSet.delete(routeId);
+      } else {
+        newSet.add(routeId);
+      }
+      return newSet;
+    });
   };
 
-  // ルート一覧更新のコールバック
-  const handleRoutesUpdate = (routes: RunningRoute[]) => {
-    setSavedRoutes(routes);
+  // 全ルートの表示/非表示を切り替える
+  const toggleAllRoutesVisibility = () => {
+    if (visibleRoutes.size === savedRoutes.length && savedRoutes.length > 0) {
+      // 全て表示中の場合は全て非表示に
+      setVisibleRoutes(new Set());
+    } else {
+      // 一部または全て非表示の場合は全て表示に
+      setVisibleRoutes(new Set(savedRoutes.map((route) => route.id)));
+    }
   };
 
   // ユーザー変更を監視（ログイン時のルート移行検知）
@@ -361,20 +276,15 @@ const AppContent: React.FC = () => {
             const routes = await loadUserRoutes();
             setSavedRoutes(routes);
             setAllRoutes(routes);
-            
-            // 移行されたルートがある場合の通知
-            if (routes.length > 0) {
-              showToast(`${routes.length}個のルートを引き継ぎました！`, 'success');
-            }
           }, 1000);
         } catch (error) {
           console.error("ルート一覧の取得に失敗しました:", error);
         }
       };
-      
+
       checkForMigratedRoutes();
     }
-    
+
     setPreviousUser(user);
   }, [user, previousUser, loadUserRoutes]);
 
@@ -395,31 +305,25 @@ const AppContent: React.FC = () => {
   // 手動作成開始
   const handleStartManualCreation = () => {
     // 現在の状態をクリア
-    clearRoute();
     setIsEditMode(false);
-    setShowAllRoutes(false);
     setSelectedRouteId(undefined);
     setLoadedRoute([]);
     setEditableRoute([]);
 
     // 手動作成モードで記録開始
     setIsManualMode(true);
-    startRecording();
   };
 
   // AIルート処理
   const handleAIGeneratedRoute = (route: RoutePoint[]) => {
     // 現在の状態をクリア
-    clearRoute();
     setIsEditMode(false);
-    setShowAllRoutes(false);
     setSelectedRouteId(undefined);
     setLoadedRoute([]);
 
     // AIで生成されたルートを編集可能な状態で設定
     setEditableRoute(route);
     setIsManualMode(true); // 手動モードとして扱い、編集・保存可能にする
-    startRecording(); // 記録状態にして保存ボタンを表示
 
     showToast("AIルートが生成されました！必要に応じて編集して保存してください。", "success");
   };
@@ -435,16 +339,13 @@ const AppContent: React.FC = () => {
     }));
 
     // 現在の状態をクリア
-    clearRoute();
     setIsEditMode(false);
-    setShowAllRoutes(false);
     setSelectedRouteId(undefined);
     setLoadedRoute([]);
 
     // コピーしたルートを編集可能な状態で設定
     setEditableRoute(routePoints);
     setIsManualMode(true); // 手動モードとして扱い、編集・保存可能にする
-    startRecording(); // 記録状態にして保存ボタンを表示
 
     showToast(`「${route.name}」をコピーしました！編集して保存してください。`, "success");
   };
@@ -458,7 +359,6 @@ const AppContent: React.FC = () => {
       setTimeout(() => {
         setIsManualMode(false);
         setIsEditMode(true);
-        setShowAllRoutes(false);
       }, 100);
     } else if (loadedRoute.length > 0) {
       // 手動作成モードを終了
@@ -467,7 +367,7 @@ const AppContent: React.FC = () => {
       // 現在表示中のルートを編集対象とする
       setEditableRoute([...loadedRoute]);
       setIsEditMode(true);
-      setShowAllRoutes(false); // 編集時は個別表示に切り替え
+      // 編集時は個別表示に切り替え
     }
   };
 
@@ -517,17 +417,12 @@ const AppContent: React.FC = () => {
       setIsEditMode(false);
       setEditableRoute([]);
 
-      // サイドバーのルート一覧を更新
-      if (routeListRef.current) {
-        await routeListRef.current.refreshRoutes();
-      }
-
       // オーバーレイのルート一覧を更新
       try {
         const updatedRoutes = await loadUserRoutes();
         setSavedRoutes(updatedRoutes);
       } catch (error) {
-        console.error('ルート一覧更新エラー:', error);
+        console.error("ルート一覧更新エラー:", error);
       }
 
       showToast("ルートが正常に更新されました！", "success");
@@ -540,7 +435,7 @@ const AppContent: React.FC = () => {
   // ポイントドラッグ処理（ちらつき防止のため参照を保持）
   const handlePointDrag = React.useCallback(
     (index: number, lat: number, lng: number) => {
-      if (isEditMode || (isManualMode && routeState.isRecording)) {
+      if (isEditMode || isManualMode) {
         setEditableRoute((prevRoute) => {
           const newRoute = [...prevRoute];
           newRoute[index] = {
@@ -552,17 +447,17 @@ const AppContent: React.FC = () => {
         });
       }
     },
-    [isEditMode, isManualMode, routeState.isRecording]
+    [isEditMode, isManualMode]
   );
 
   // ポイント削除処理
   const handlePointDelete = React.useCallback(
     (index: number) => {
-      if (isEditMode || (isManualMode && routeState.isRecording)) {
+      if (isEditMode || isManualMode) {
         setEditableRoute((prevRoute) => prevRoute.filter((_, i) => i !== index));
       }
     },
-    [isEditMode, isManualMode, routeState.isRecording]
+    [isEditMode, isManualMode]
   );
 
   // ドラッグ状態管理のコールバック
@@ -598,12 +493,7 @@ const AppContent: React.FC = () => {
       }
 
       // オーバーレイのルート一覧を更新
-      setSavedRoutes(prevRoutes => prevRoutes.filter(route => route.id !== routeId));
-
-      // サイドバーのルート一覧を更新
-      if (routeListRef.current) {
-        await routeListRef.current.refreshRoutes();
-      }
+      setSavedRoutes((prevRoutes) => prevRoutes.filter((route) => route.id !== routeId));
 
       showToast("ルートが削除されました。", "success");
     } catch (error) {
@@ -616,7 +506,7 @@ const AppContent: React.FC = () => {
   const handleRouteLineClick = React.useCallback(
     (lat: number, lng: number) => {
       console.log("handleRouteLineClick called at:", lat, lng, "isDragging:", isDragging);
-      if (!isEditMode && !(isManualMode && routeState.isRecording)) return;
+      if (!isEditMode && !isManualMode) return;
 
       // ドラッグ中はピン挿入を無効化
       if (isDragging) {
@@ -633,7 +523,7 @@ const AppContent: React.FC = () => {
       };
 
       // 編集対象のルートを決定（編集モードなら編集ルート、手動作成なら作成中ルート）
-      const targetRoute = isEditMode ? editableRoute : routeState.route;
+      const targetRoute = isEditMode ? editableRoute : editableRoute;
 
       // クリックした位置に最も近いセグメントのインデックスを計算
       let minDistance = Infinity;
@@ -661,7 +551,7 @@ const AppContent: React.FC = () => {
         return newRoute;
       });
     },
-    [isEditMode, isManualMode, routeState.isRecording, editableRoute, routeState.route, isDragging]
+    [isEditMode, isManualMode, editableRoute, isDragging]
   );
 
   // 点と線分の距離を計算
@@ -724,95 +614,87 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="App">
-      <header className="App-header" style={{ position: "relative" }}>
-        {/* ヘッダー左上の開閉ボタン（常に表示） */}
-        <button
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "10px 20px",
+          width: "100%",
+          flexDirection: "row",
+          backgroundColor: "#282c34",
+          color: "white",
+          fontSize: "16px",
+        }}
+      >
+        <div
           style={{
-            position: "absolute",
-            top: "10px",
-            left: "10px",
-            width: "40px",
-            height: "40px",
-            borderRadius: "8px",
-            border: "none",
-            backgroundColor: "rgba(64, 76, 88, 0.8)",
-            color: "white",
-            cursor: "pointer",
+            textAlign: "left",
+            flex: "0 0 auto",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            fontSize: "18px",
-            fontWeight: "bold",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
-            transition: "all 0.3s ease",
+            gap: "10px",
+            cursor: "pointer",
           }}
-          title={isSidebarCollapsed ? "メニューを開く" : "メニューを閉じる"}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "rgba(64, 76, 88, 1)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "rgba(64, 76, 88, 0.8)";
-          }}
+          onClick={() => window.location.reload()}
         >
-          {isSidebarCollapsed ? "☰" : "✕"}
-        </button>
-
-        <div style={{ flex: 1 }}>
-          <h1 style={{ margin: "5px 0", fontSize: "1.5em" }}>Running Route Tracker</h1>
-          <p style={{ margin: "5px 0", fontSize: "0.9em" }}>ランニングルートを記録・共有しよう</p>
+          <DirectionsRun sx={{ fontSize: "2rem", color: "#4caf50" }} />
+          <div>
+            <h1
+              style={{
+                margin: "5px 0",
+                fontSize: "1.5em",
+                textAlign: "left",
+                fontFamily: "Poppins, sans-serif",
+                fontWeight: "600",
+              }}
+            >
+              ランメモ
+            </h1>
+          </div>
         </div>
-        
-        {/* ユーザープロフィール/ログインボタン（右上に配置） */}
-        <div style={{ position: "absolute", top: "10px", right: "10px" }}>
+
+        {/* ユーザープロフィール/ログインボタン */}
+        <div style={{ textAlign: "right", flex: "0 0 auto" }}>
           {user ? (
             <UserProfile />
           ) : (
             <button
               onClick={() => setShowLoginModal(true)}
               style={{
-                padding: "8px 16px",
-                backgroundColor: "#007bff",
-                color: "white",
+                padding: "6px 12px",
+                backgroundColor: "transparent",
+                color: "rgba(255, 255, 255, 0.8)",
                 border: "none",
-                borderRadius: "20px",
+                borderRadius: "4px",
                 cursor: "pointer",
                 fontSize: "14px",
-                fontWeight: "bold",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                fontWeight: "normal",
+                boxShadow: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                transition: "background-color 0.2s ease, color 0.2s ease",
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+                e.currentTarget.style.color = "white";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "rgba(255, 255, 255, 0.8)";
               }}
             >
-              🔐 ログイン
+              <Person sx={{ fontSize: "18px" }} />
+              ログイン
             </button>
           )}
         </div>
       </header>
 
       <div className="app-main">
-        {/* サイドバー */}
-        <div className={`sidebar ${isSidebarCollapsed ? "collapsed" : ""}`}>
-          {!isSidebarCollapsed && (
-            <RouteListSidebar
-              ref={routeListRef}
-              onLoadRoute={handleLoadRoute}
-              onDeleteRoute={handleRouteDelete}
-              onToggleAllRoutes={handleToggleAllRoutes}
-              onEditRoute={() => startEditMode()}
-              selectedRouteId={selectedRouteId}
-              showAllRoutes={showAllRoutes}
-              onRoutesUpdate={handleRoutesUpdate}
-              editingRouteId={editingRouteId}
-              editingRouteName={editingRouteName}
-              onStartEditRouteName={handleStartEditRouteName}
-              onCancelEditRouteName={handleCancelEditRouteName}
-              onSaveRouteName={handleSaveRouteName}
-              onEditingRouteNameChange={setEditingRouteName}
-            />
-          )}
-        </div>
-
         {/* メインコンテンツ */}
-        <div className="main-content">
+        <div className="main-content" style={{ width: "100%" }}>
           {/* 地図コンテナ（全画面表示） */}
           <div className="map-container">
             {/* 制御ボタンオーバーレイ */}
@@ -836,8 +718,8 @@ const AppContent: React.FC = () => {
                   <button onClick={stopEditMode} style={getButtonStyle("108, 117, 125")}>
                     ❌ キャンセル
                   </button>
-                  <button 
-                    onClick={handleRemoveLastPin} 
+                  <button
+                    onClick={handleRemoveLastPin}
                     style={getButtonStyle("255, 193, 7")}
                     disabled={editableRoute.length === 0}
                   >
@@ -872,7 +754,7 @@ const AppContent: React.FC = () => {
                   ❌ {error.message}
                 </div>
               )}
-              {isManualMode ? (
+              {isManualMode && (
                 // 手動作成モード：保存とクリアボタンのみ
                 <>
                   <button
@@ -883,7 +765,6 @@ const AppContent: React.FC = () => {
                   </button>
                   <button
                     onClick={() => {
-                      clearRoute();
                       setEditableRoute([]);
                       setIsManualMode(false); // 手動作成モード終了
                     }}
@@ -891,64 +772,14 @@ const AppContent: React.FC = () => {
                   >
                     ❌ キャンセル
                   </button>
-                  <button 
-                    onClick={handleRemoveLastPin} 
+                  <button
+                    onClick={handleRemoveLastPin}
                     style={getButtonStyle("255, 193, 7")}
                     disabled={editableRoute.length === 0}
                   >
                     🗑️ 末尾削除
                   </button>
                 </>
-              ) : (
-                // GPS記録モード：従来の制御（編集モード時は非表示）
-                !isEditMode && (
-                  <>
-                    {!routeState.isRecording && routeState.route.length === 0 && (
-                      <button
-                        onClick={() => {
-                          if (!isTracking) {
-                            startTracking();
-                          }
-                          startRecording();
-                        }}
-                        style={getButtonStyle("0, 123, 255")}
-                      >
-                        🏃‍♂️ 記録開始
-                      </button>
-                    )}
-
-                    {routeState.isRecording && (
-                      <button onClick={pauseRecording} style={getButtonStyle("255, 193, 7")}>
-                        ⏸️ 一時停止
-                      </button>
-                    )}
-
-                    {!routeState.isRecording && routeState.route.length > 0 && (
-                      <>
-                        <button onClick={resumeRecording} style={getButtonStyle("40, 167, 69")}>
-                          ▶️ 再開
-                        </button>
-                        <button
-                          onClick={() => setShowSaveModal(true)}
-                          style={getButtonStyle("40, 167, 69")}
-                        >
-                          💾 保存
-                        </button>
-                        <button
-                          onClick={() => {
-                            clearRoute();
-                            if (isTracking) {
-                              stopTracking();
-                            }
-                          }}
-                          style={getButtonStyle("108, 117, 125")}
-                        >
-                          ❌ キャンセル
-                        </button>
-                      </>
-                    )}
-                  </>
-                )
               )}
             </div>
 
@@ -991,68 +822,6 @@ const AppContent: React.FC = () => {
               </div>
             )} */}
 
-            {/* 統計情報オーバーレイ（制御ボタンの横） */}
-            {(routeState.route.length > 0 || (isManualMode && editableRoute.length > 0)) && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "20px",
-                  left: "170px",
-                  zIndex: 1000,
-                  backgroundColor: "rgba(0, 0, 0, 0.8)",
-                  color: "white",
-                  padding: "12px",
-                  borderRadius: "8px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "6px",
-                  fontSize: "0.85em",
-                  fontWeight: "bold",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
-                  maxWidth: "220px",
-                }}
-              >
-                <div>
-                  📏 距離:{" "}
-                  {isManualMode && editableRoute.length > 0
-                    ? formatDistance(
-                        (() => {
-                          let totalDistance = 0;
-                          for (let i = 1; i < editableRoute.length; i++) {
-                            const R = 6371000;
-                            const dLat =
-                              ((editableRoute[i].lat - editableRoute[i - 1].lat) * Math.PI) / 180;
-                            const dLng =
-                              ((editableRoute[i].lng - editableRoute[i - 1].lng) * Math.PI) / 180;
-                            const a =
-                              Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                              Math.cos((editableRoute[i - 1].lat * Math.PI) / 180) *
-                                Math.cos((editableRoute[i].lat * Math.PI) / 180) *
-                                Math.sin(dLng / 2) *
-                                Math.sin(dLng / 2);
-                            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                            totalDistance += R * c;
-                          }
-                          return totalDistance;
-                        })()
-                      )
-                    : formatDistance(routeState.distance)}
-                </div>
-                {!isManualMode && (
-                  <>
-                    <div>⏱️ 時間: {formatDuration(routeState.duration)}</div>
-                    <div>🏃‍♂️ ペース: {calculatePace()}/km</div>
-                  </>
-                )}
-                <div>
-                  📍 ポイント数:{" "}
-                  {isManualMode && editableRoute.length > 0
-                    ? editableRoute.length
-                    : routeState.route.length}
-                </div>
-              </div>
-            )}
-
             {/* Google Maps */}
             {apiKey ? (
               <GoogleMap
@@ -1067,13 +836,10 @@ const AppContent: React.FC = () => {
                     ? editableRoute
                     : isManualMode && editableRoute.length > 0
                     ? editableRoute
-                    : routeState.route.length > 0
-                    ? routeState.route
-                    : showAllRoutes
+                    : visibleRoutes.size > 0
                     ? []
                     : loadedRoute
                 }
-                isRecording={routeState.isRecording}
                 onMapClick={handleMapClick}
                 isDemoMode={isManualMode}
                 isEditMode={isEditMode}
@@ -1083,7 +849,7 @@ const AppContent: React.FC = () => {
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
                 allRoutes={allRoutes}
-                showAllRoutes={showAllRoutes}
+                visibleRoutes={visibleRoutes}
                 selectedRouteId={selectedRouteId}
                 onRouteSelect={handleLoadRoute}
               />
@@ -1109,11 +875,12 @@ const AppContent: React.FC = () => {
               onSelectRoute={handleLoadRoute}
               onEditRoute={startEditMode}
               onDeleteRoute={handleRouteDelete}
-              onToggleAllRoutes={handleToggleAllRoutes}
-              showAllRoutes={showAllRoutes}
+              onToggleAllRoutes={toggleAllRoutesVisibility}
               onStartManualCreation={handleStartManualCreation}
               onStartAIGeneration={() => setShowAIOptimizer(true)}
               onStartRouteCopy={handleRouteCopy}
+              visibleRoutes={visibleRoutes}
+              onToggleRouteVisibility={toggleRouteVisibility}
             />
           </div>
         </div>
@@ -1152,8 +919,8 @@ const AppContent: React.FC = () => {
         isOpen={showSaveModal}
         onClose={() => setShowSaveModal(false)}
         onSave={handleSaveRoute}
-        distance={routeState.distance}
-        duration={routeState.duration}
+        distance={0}
+        duration={0}
         isLoading={isSaving}
       />
 
@@ -1166,10 +933,7 @@ const AppContent: React.FC = () => {
       />
 
       {/* ログインモーダル */}
-      <LoginModal
-        isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-      />
+      <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
     </div>
   );
 };
