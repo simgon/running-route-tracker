@@ -9,7 +9,6 @@ import AIRouteOptimizer from "./components/AIRouteOptimizer";
 import LoginModal from "./components/LoginModal";
 import UserProfile from "./components/UserProfile";
 import CurrentLocationButton from "./components/CurrentLocationButton";
-import CurrentLocationMarker from "./components/CurrentLocationMarker";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { useGeolocation } from "./hooks/useGeolocation";
 import { useRouteStorage } from "./hooks/useRouteStorage";
@@ -110,16 +109,42 @@ const AppContent: React.FC = () => {
     }
 
     try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 60000,
+      // まず高精度で試行、失敗したら低精度で再試行
+      let position: GeolocationPosition;
+      try {
+        console.log("高精度位置取得を試行中...");
+        position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 8000, // PCでは短めに
+            maximumAge: 60000,
+          });
         });
-      });
+        console.log("高精度位置取得成功");
+      } catch (highAccuracyError) {
+        console.log("高精度位置取得に失敗、低精度で再試行:", highAccuracyError);
+        
+        // 低精度で再試行
+        position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: false,
+            timeout: 20000, // PCでは長めに
+            maximumAge: 600000, // 10分間キャッシュ
+          });
+        });
+        console.log("低精度位置取得成功");
+      }
 
-      const { latitude, longitude, heading } = position.coords;
+      const { latitude, longitude, heading, accuracy } = position.coords;
       const currentPos = { lat: latitude, lng: longitude };
+
+      console.log("取得した位置情報:", {
+        latitude,
+        longitude,
+        heading,
+        accuracy: accuracy ? `${Math.round(accuracy)}m` : "不明",
+        timestamp: new Date(position.timestamp).toLocaleString(),
+      });
 
       // マップを現在位置に移動
       if (mapRef.current) {
@@ -127,13 +152,46 @@ const AppContent: React.FC = () => {
         mapRef.current.setZoom(18);
       }
 
+      // デバイスの方向を取得（利用可能な場合）
+      let deviceHeading = heading || 0;
+      
+      // コンパス方向を取得（モバイルデバイスの場合）
+      if (typeof DeviceOrientationEvent !== 'undefined') {
+        try {
+          // iOS 13+ でのPermission要求（存在する場合のみ）
+          const DeviceOrientationEventAny = DeviceOrientationEvent as any;
+          if (DeviceOrientationEventAny.requestPermission) {
+            const permission = await DeviceOrientationEventAny.requestPermission();
+            if (permission !== 'granted') {
+              throw new Error('Permission denied');
+            }
+          }
+
+          // デバイス方向イベントを一度だけ取得
+          const orientationPromise = new Promise<number>((resolve) => {
+            const handleOrientation = (event: DeviceOrientationEvent) => {
+              const alpha = event.alpha; // コンパス方向
+              window.removeEventListener('deviceorientation', handleOrientation);
+              resolve(alpha || 0);
+            };
+            window.addEventListener('deviceorientation', handleOrientation);
+            // 3秒後にタイムアウト
+            setTimeout(() => {
+              window.removeEventListener('deviceorientation', handleOrientation);
+              resolve(deviceHeading);
+            }, 3000);
+          });
+          deviceHeading = await orientationPromise;
+        } catch (err) {
+          console.log("デバイス方向の取得をスキップ:", err);
+        }
+      }
+
       // 現在位置マーカーを表示
       setCurrentLocationMarker({
         position: currentPos,
-        heading: heading || 0,
+        heading: deviceHeading,
       });
-
-      showToast("現在位置を表示しました", "success");
     } catch (error) {
       console.error("現在位置の取得に失敗:", error);
       showToast("現在位置の取得に失敗しました", "error");

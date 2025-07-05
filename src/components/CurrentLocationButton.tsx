@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { IconButton, styled } from '@mui/material';
-import { MyLocation } from '@mui/icons-material';
+import React, { useState, useEffect } from "react";
+import { IconButton, styled } from "@mui/material";
+import { MyLocation } from "@mui/icons-material";
 
 interface CurrentLocationButtonProps {
   onLocationClick: () => void;
@@ -8,19 +8,21 @@ interface CurrentLocationButtonProps {
 }
 
 const LocationButton = styled(IconButton)(({ theme }) => ({
-  position: 'absolute',
-  top: 80,
-  right: 16,
+  position: "absolute",
+  top: 180, // ズームボタンの下に配置
+  right: 12,
   zIndex: 1000,
-  backgroundColor: 'white',
-  color: '#1976d2',
-  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-  '&:hover': {
-    backgroundColor: '#f5f5f5',
+  backgroundColor: "white",
+  color: "#1976d2",
+  boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+  width: 40,
+  height: 40,
+  "&:hover": {
+    backgroundColor: "#f5f5f5",
   },
-  '&:disabled': {
-    backgroundColor: '#f5f5f5',
-    color: '#ccc',
+  "&:disabled": {
+    backgroundColor: "#f5f5f5",
+    color: "#ccc",
   },
 }));
 
@@ -30,12 +32,12 @@ const CurrentLocationButton: React.FC<CurrentLocationButtonProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleClick = async () => {
+  const handleClick = () => {
     if (disabled) return;
-    
+
     setIsLoading(true);
     try {
-      await onLocationClick();
+      onLocationClick();
     } finally {
       setIsLoading(false);
     }
