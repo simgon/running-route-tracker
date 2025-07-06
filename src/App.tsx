@@ -359,12 +359,12 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    // 選択されたルートが異なる場合：そのルートを編集モードで表示
+    // 選択されたルートが異なる場合：そのルートを通常表示モードで表示
     setSelectedRouteId(route.id);
-    setIsEditMode(true); // 編集モード有効
+    setIsEditMode(false); // 通常表示モード
     setIsCreationMode(false); // 新規手動作成モードはキャンセル
     setLoadedRoute(routePoints);
-    setEditableRoute([...routePoints]); // 編集可能な状態で設定
+    setEditableRoute([]); // 編集モードではないため空にする
 
     // マップビューをルートに合わせて移動
     fitMapToRoute(routePoints);
