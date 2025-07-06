@@ -1006,13 +1006,14 @@ const AppContent: React.FC = () => {
                   transform: "translateX(-50%)",
                   zIndex: 1001,
                   backgroundColor: "rgba(255, 255, 255, 0.4)",
-                  borderRadius: 3,
-                  p: 1.5,
-                  boxShadow: 3,
-                  backdropFilter: "blur(10px)",
+                  borderRadius: 4,
+                  p: 3,
+                  boxShadow: 4,
+                  backdropFilter: "blur(12px)",
                   display: "flex",
-                  gap: 3,
+                  gap: 4,
                   alignItems: "flex-end",
+                  minHeight: 80,
                 }}
               >
                 <Tooltip title="保存">
@@ -1027,12 +1028,14 @@ const AppContent: React.FC = () => {
                     sx={{
                       backgroundColor: "success.main",
                       color: "white",
+                      width: 56,
+                      height: 56,
                       "&:hover": {
                         backgroundColor: "success.dark",
                       },
                     }}
                   >
-                    <SaveAlt />
+                    <SaveAlt fontSize="large" />
                   </IconButton>
                 </Tooltip>
 
@@ -1046,11 +1049,11 @@ const AppContent: React.FC = () => {
                       "&:hover": {
                         backgroundColor: editableRoute.length === 0 ? "grey.400" : "warning.dark",
                       },
-                      width: 55,
-                      height: 55,
+                      width: 65,
+                      height: 65,
                     }}
                   >
-                    <Backspace />
+                    <Backspace fontSize="large" />
                   </IconButton>
                 </Tooltip>
 
@@ -1068,12 +1071,14 @@ const AppContent: React.FC = () => {
                     sx={{
                       backgroundColor: "error.main",
                       color: "white",
+                      width: 56,
+                      height: 56,
                       "&:hover": {
                         backgroundColor: "error.dark",
                       },
                     }}
                   >
-                    <Cancel />
+                    <Cancel fontSize="large" />
                   </IconButton>
                 </Tooltip>
               </Box>
