@@ -82,8 +82,6 @@ const AppContent: React.FC = () => {
 
   const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
 
-
-
   // トースト通知表示関数
   const showToast = (message: string, type: "success" | "error") => {
     setToastMessage({ message, type });
@@ -334,42 +332,45 @@ const AppContent: React.FC = () => {
   };
 
   // ルート選択処理（onSelectRoute）
-  const handleSelectRoute = React.useCallback((route: RunningRoute) => {
-    // GeoJSON LineStringをRoutePointに変換
-    const routePoints: RoutePoint[] = route.route_data.coordinates.map((coord, index) => ({
-      lat: coord[1],
-      lng: coord[0],
-      timestamp: Date.now() + index * 1000, // 仮のタイムスタンプ
-      accuracy: route.elevation_data?.[index] || 5,
-    }));
+  const handleSelectRoute = React.useCallback(
+    (route: RunningRoute) => {
+      // GeoJSON LineStringをRoutePointに変換
+      const routePoints: RoutePoint[] = route.route_data.coordinates.map((coord, index) => ({
+        lat: coord[1],
+        lng: coord[0],
+        timestamp: Date.now() + index * 1000, // 仮のタイムスタンプ
+        accuracy: route.elevation_data?.[index] || 5,
+      }));
 
-    // 選択されたルートが現在選択中のルートと同じ場合：編集モードと通常表示モードを交互に切り替え
-    if (selectedRouteId === route.id) {
-      if (isEditMode) {
-        // 現在編集モードの場合：編集モードを終了して通常表示モードに移行
-        setIsEditMode(false);
-        setEditableRoute([]);
-        // selectedRouteIdとloadedRouteは保持してルートを通常表示モードで表示
-      } else {
-        // 現在通常表示モードの場合：編集モードに切り替え
-        setIsEditMode(true);
-        setEditableRoute([...loadedRoute]); // loadedRouteの内容をeditableRouteにコピー
-        // 編集モードに入る時のみマップビューを調整
-        fitMapToRoute(loadedRoute);
+      // 選択されたルートが現在選択中のルートと同じ場合：編集モードと通常表示モードを交互に切り替え
+      if (selectedRouteId === route.id) {
+        if (isEditMode) {
+          // 現在編集モードの場合：編集モードを終了して通常表示モードに移行
+          setIsEditMode(false);
+          setEditableRoute([]);
+          // selectedRouteIdとloadedRouteは保持してルートを通常表示モードで表示
+        } else {
+          // 現在通常表示モードの場合：編集モードに切り替え
+          setIsEditMode(true);
+          setEditableRoute([...loadedRoute]); // loadedRouteの内容をeditableRouteにコピー
+          // 編集モードに入る時のみマップビューを調整
+          fitMapToRoute(loadedRoute);
+        }
+        setIsCreationMode(false);
+        return;
       }
-      setIsCreationMode(false);
-      return;
-    }
 
-    // 選択されたルートが異なる場合：そのルートを通常表示モードで表示
-    setSelectedRouteId(route.id);
-    setIsEditMode(false); // 通常表示モード
-    setIsCreationMode(false); // 新規手動作成モードはキャンセル
-    setLoadedRoute(routePoints);
-    setEditableRoute([]); // 編集モードではないため空にする
+      // 選択されたルートが異なる場合：そのルートを通常表示モードで表示
+      setSelectedRouteId(route.id);
+      setIsEditMode(false); // 通常表示モード
+      setIsCreationMode(false); // 新規手動作成モードはキャンセル
+      setLoadedRoute(routePoints);
+      setEditableRoute([]); // 編集モードではないため空にする
 
-    // 通常表示モードではマップ移動しない（現在のビューを維持）
-  }, [selectedRouteId, isEditMode, loadedRoute]);
+      // 通常表示モードではマップ移動しない（現在のビューを維持）
+    },
+    [selectedRouteId, isEditMode, loadedRoute]
+  );
 
   // ルートの表示/非表示を切り替える
   const toggleRouteVisibility = (routeId: string) => {
@@ -442,30 +443,31 @@ const AppContent: React.FC = () => {
 
       // 入力フィールドやモーダルにフォーカスがある場合は無効化
       const activeElement = document.activeElement;
-      if (activeElement && (
-        activeElement.tagName === 'INPUT' ||
-        activeElement.tagName === 'TEXTAREA' ||
-        activeElement.getAttribute('contenteditable') === 'true'
-      )) {
+      if (
+        activeElement &&
+        (activeElement.tagName === "INPUT" ||
+          activeElement.tagName === "TEXTAREA" ||
+          activeElement.getAttribute("contenteditable") === "true")
+      ) {
         return;
       }
 
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.preventDefault();
-        
-        const currentIndex = selectedRouteId 
-          ? savedRoutes.findIndex(route => route.id === selectedRouteId)
+
+        const currentIndex = selectedRouteId
+          ? savedRoutes.findIndex((route) => route.id === selectedRouteId)
           : -1;
-        
+
         let nextIndex;
-        if (e.key === 'ArrowLeft') {
+        if (e.key === "ArrowLeft") {
           // 左矢印：前のルートへ
           nextIndex = currentIndex <= 0 ? savedRoutes.length - 1 : currentIndex - 1;
         } else {
           // 右矢印：次のルートへ
           nextIndex = currentIndex >= savedRoutes.length - 1 ? 0 : currentIndex + 1;
         }
-        
+
         const nextRoute = savedRoutes[nextIndex];
         if (nextRoute) {
           handleSelectRoute(nextRoute);
@@ -473,9 +475,9 @@ const AppContent: React.FC = () => {
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [savedRoutes, selectedRouteId, isEditMode, isCreationMode, handleSelectRoute]);
 
@@ -804,7 +806,7 @@ const AppContent: React.FC = () => {
         }}
       >
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "24px", marginBottom: "16px" }}>🏃‍♂️</div>
+          <DirectionsRun style={{ fontSize: "64px", color: "#1976d2", marginBottom: "16px" }} />
           <div style={{ fontSize: "18px", color: "#6c757d" }}>読み込み中...</div>
         </div>
       </div>
@@ -937,47 +939,7 @@ const AppContent: React.FC = () => {
                   ❌ {error.message}
                 </div>
               )}
-              {/* 作成・編集時のボタンはRouteOverlayに移動したため非表示 */}
             </div>
-
-            {/* モード説明 */}
-            {/* {isCreationMode && (
-              <div
-                style={{
-                  backgroundColor: "#d1ecf1",
-                  border: "1px solid #bee5eb",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  marginBottom: "15px",
-                  fontSize: "0.9em",
-                }}
-              >
-                ✏️ <strong>手動作成中:</strong>{" "}
-                地図クリックでピン追加、ルート線クリックで間にピン挿入、ピンを左クリック&ドラッグで移動、右クリックで削除できます。作成後は保存してください。
-                <br />
-                🟢 スタート / 🟠 中間ポイント / 🔴 ゴール / 🩷 ドラッグ中
-              </div>
-            )} */}
-
-            {/* {isEditMode && (
-              <div
-                style={{
-                  backgroundColor: "#fff3cd",
-                  border: "1px solid #ffeaa7",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  marginBottom: "15px",
-                  fontSize: "0.9em",
-                }}
-              >
-                ✏️ <strong>編集モード:</strong>{" "}
-                地図クリックでピン追加、ルート線クリックで間にピン挿入、ピンを左クリック&ドラッグで移動、右クリックで削除できます。
-                <br />
-                💾 <strong>保存して適用</strong>ボタンで編集内容が既存ルートに反映されます。
-                <br />
-                🟢 スタート / 🟠 中間ポイント / 🔴 ゴール / 🩷 ドラッグ中
-              </div>
-            )} */}
 
             {/* Google Maps */}
             {apiKey ? (
@@ -1043,17 +1005,16 @@ const AppContent: React.FC = () => {
                   left: "50%",
                   transform: "translateX(-50%)",
                   zIndex: 1001,
-                  backgroundColor: "rgba(255, 255, 255, 0.95)",
+                  backgroundColor: "rgba(255, 255, 255, 0.4)",
                   borderRadius: 3,
                   p: 1.5,
                   boxShadow: 3,
                   backdropFilter: "blur(10px)",
                   display: "flex",
-                  gap: 1,
-                  alignItems: "center",
+                  gap: 3,
+                  alignItems: "flex-end",
                 }}
               >
-                {/* 保存ボタン */}
                 <Tooltip title="保存">
                   <IconButton
                     onClick={() => {
@@ -1063,7 +1024,6 @@ const AppContent: React.FC = () => {
                         setShowSaveModal(true);
                       }
                     }}
-                    size="medium"
                     sx={{
                       backgroundColor: "success.main",
                       color: "white",
@@ -1075,12 +1035,10 @@ const AppContent: React.FC = () => {
                     <SaveAlt />
                   </IconButton>
                 </Tooltip>
-                
-                {/* 末尾削除ボタン */}
+
                 <Tooltip title="末尾ピン削除">
                   <IconButton
                     onClick={handleRemoveLastPin}
-                    size="medium"
                     disabled={editableRoute.length === 0}
                     sx={{
                       backgroundColor: editableRoute.length === 0 ? "grey.400" : "warning.main",
@@ -1088,13 +1046,14 @@ const AppContent: React.FC = () => {
                       "&:hover": {
                         backgroundColor: editableRoute.length === 0 ? "grey.400" : "warning.dark",
                       },
+                      width: 55,
+                      height: 55,
                     }}
                   >
                     <Backspace />
                   </IconButton>
                 </Tooltip>
-                
-                {/* キャンセルボタン */}
+
                 <Tooltip title="キャンセル">
                   <IconButton
                     onClick={() => {
@@ -1106,7 +1065,6 @@ const AppContent: React.FC = () => {
                         setSelectedRouteId(undefined);
                       }
                     }}
-                    size="medium"
                     sx={{
                       backgroundColor: "error.main",
                       color: "white",
