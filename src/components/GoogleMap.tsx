@@ -581,10 +581,9 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             // 1秒後（1000ms）で削除処理
             longTapTimer = setTimeout(() => {
               // 1秒間ロングタップで削除
-              const currentOnPointDelete = (window as any).currentOnPointDelete;
-              if (currentOnPointDelete) {
+              if (onPointDeleteRef.current) {
                 console.log("1 second long tap detected - deleting pin", index);
-                currentOnPointDelete(index);
+                onPointDeleteRef.current(index);
               }
             }, 1000); // 1000ms
           }
