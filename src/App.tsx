@@ -28,6 +28,131 @@ import { RunningRoute, updateRoutesOrder } from "./lib/supabase";
 import { RoutePoint } from "./hooks/useRunningRoute";
 import "./App.css";
 
+// OS判定
+const detectOS = () => {
+  let ret;
+  if (
+    navigator.userAgent.indexOf("iPhone") > 0 ||
+    navigator.userAgent.indexOf("iPad") > 0 ||
+    navigator.userAgent.indexOf("iPod") > 0
+  ) {
+    ret = "iphone";
+  } else if (navigator.userAgent.indexOf("Android") > 0) {
+    ret = "android";
+  } else {
+    ret = "pc";
+  }
+  return ret;
+};
+
+// 端末の傾き補正（Android用）
+const compassHeading = (alpha: number, beta: number, gamma: number) => {
+  const degtorad = Math.PI / 180; // Degree-to-Radian conversion
+
+  const _x = beta ? beta * degtorad : 0; // beta value
+  const _y = gamma ? gamma * degtorad : 0; // gamma value
+  const _z = alpha ? alpha * degtorad : 0; // alpha value
+
+  const cY = Math.cos(_y);
+  const cZ = Math.cos(_z);
+  const sX = Math.sin(_x);
+  const sY = Math.sin(_y);
+  const sZ = Math.sin(_z);
+
+  // Calculate Vx and Vy components
+  const Vx = -cZ * sY - sZ * sX * cY;
+  const Vy = -sZ * sY + cZ * sX * cY;
+
+  // Calculate compass heading
+  let compassHeadingResult = Math.atan(Vx / Vy);
+
+  // Convert compass heading to use whole unit circle
+  if (Vy < 0) {
+    compassHeadingResult += Math.PI;
+  } else if (Vx < 0) {
+    compassHeadingResult += 2 * Math.PI;
+  }
+
+  return compassHeadingResult * (180 / Math.PI); // Compass Heading (in degrees)
+};
+
+// 端末方位を取得
+const getCompassHeading = (): Promise<number> => {
+  return new Promise((resolve) => {
+    // OS判定
+    const os = detectOS();
+    let eventType: string;
+
+    if (os === "iphone") {
+      eventType = "deviceorientation";
+    } else if (os === "android") {
+      eventType = "deviceorientationabsolute";
+    } else {
+      resolve(0);
+      return;
+    }
+
+    let degrees: number | null = null;
+
+    // ジャイロスコープと地磁気をセンサーから取得
+    const orientationHandler = (event: any) => {
+      if (os === "iphone") {
+        // webkitCompassHeading値を採用
+        degrees = event.webkitCompassHeading || event.alpha || 0;
+      } else {
+        // deviceorientationabsoluteイベントのalphaを補正
+        degrees = compassHeading(event.alpha || 0, event.beta || 0, event.gamma || 0);
+      }
+    };
+
+    // iOS 13+ でのPermission要求（必要な場合）
+    const setupEventListener = () => {
+      // イベントリスナーを登録
+      window.addEventListener(eventType, orientationHandler, true);
+
+      let retry = 1;
+
+      // 端末方位を取得できたかを検知
+      const degreesInterval = setInterval(() => {
+        // 端末方位を取得できた場合
+        if (degrees !== null) {
+          // タイマーを停止
+          clearInterval(degreesInterval);
+          // イベントリスナーを削除
+          window.removeEventListener(eventType, orientationHandler, true);
+          resolve(degrees);
+        }
+        // 3回までリトライ
+        if (retry >= 3) {
+          // タイマーを停止
+          clearInterval(degreesInterval);
+          // イベントリスナーを削除
+          window.removeEventListener(eventType, orientationHandler, true);
+          resolve(0);
+        }
+        retry++;
+      }, 100);
+    };
+
+    // iOSの場合はPermission要求
+    if (os === "iphone" && typeof (DeviceOrientationEvent as any).requestPermission === "function") {
+      (DeviceOrientationEvent as any).requestPermission()
+        .then((response: string) => {
+          if (response === "granted") {
+            setupEventListener();
+          } else {
+            resolve(0);
+          }
+        })
+        .catch(() => {
+          resolve(0);
+        });
+    } else {
+      setupEventListener();
+    }
+  });
+};
+
 // Material-UI テーマ設定
 const theme = createTheme({
   palette: {
@@ -156,46 +281,7 @@ const AppContent: React.FC = () => {
       let deviceHeading = 0;
 
       // コンパス方向を取得（モバイルデバイスの場合）
-      if (typeof DeviceOrientationEvent !== "undefined") {
-        try {
-          // iOS 13+ でのPermission要求（存在する場合のみ）
-          const DeviceOrientationEventAny = DeviceOrientationEvent as any;
-          if (DeviceOrientationEventAny.requestPermission) {
-            // ユーザーアクションが必要なので、確実にユーザーのクリックイベント内で実行
-            const permission = await DeviceOrientationEventAny.requestPermission();
-
-            if (permission !== "granted") {
-              throw new Error(`Permission denied: ${permission}`);
-            }
-          }
-
-          // デバイス方向イベントを一度だけ取得
-          const orientationPromise = new Promise<number>((resolve) => {
-            const handleOrientation = (event: DeviceOrientationEvent) => {
-              console.log("DeviceOrientation取得:", {
-                alpha: event.alpha,
-                beta: event.beta,
-                gamma: event.gamma,
-                absolute: event.absolute,
-              });
-              const alpha = event.alpha; // コンパス方向
-              window.removeEventListener("deviceorientation", handleOrientation);
-              resolve(alpha || 0);
-            };
-            window.addEventListener("deviceorientation", handleOrientation);
-            // 3秒後にタイムアウト
-            setTimeout(() => {
-              console.log("DeviceOrientation タイムアウト");
-              window.removeEventListener("deviceorientation", handleOrientation);
-              resolve(deviceHeading);
-            }, 3000);
-          });
-          deviceHeading = await orientationPromise;
-          console.log("最終的なdeviceHeading:", deviceHeading);
-        } catch (err) {
-          console.log("デバイス方向の取得をスキップ:", err);
-        }
-      }
+      deviceHeading = await getCompassHeading();
 
       alert(deviceHeading);
 
