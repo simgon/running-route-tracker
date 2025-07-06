@@ -197,6 +197,8 @@ const AppContent: React.FC = () => {
         }
       }
 
+      alert(deviceHeading);
+
       // 現在位置マーカーを表示
       setCurrentLocationMarker({
         position: currentPos,
