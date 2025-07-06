@@ -100,12 +100,12 @@ const getCompassHeading = (): Promise<number> => {
         // webkitCompassHeading値を採用（90度補正）
         let heading = event.webkitCompassHeading || event.alpha || 0;
         // iOS でも90度補正（座標系の違いを調整）
-        degrees = (heading + 90) % 360;
+        degrees = (heading - 90 + 360) % 360;
       } else {
         // deviceorientationabsoluteイベントのalphaを補正
         let correctedHeading = compassHeading(event.alpha || 0, event.beta || 0, event.gamma || 0);
         // 90度補正（座標系の違いを調整）
-        correctedHeading = (correctedHeading + 90) % 360;
+        correctedHeading = (correctedHeading - 90 + 360) % 360;
         degrees = correctedHeading;
       }
     };
