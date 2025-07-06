@@ -1001,7 +1001,7 @@ const AppContent: React.FC = () => {
               <Box
                 sx={{
                   position: "absolute",
-                  bottom: isRouteOverlayExpanded ? routeOverlayHeight + 40 : 220,
+                  bottom: (isCreationMode || isEditMode) ? 40 : (isRouteOverlayExpanded ? routeOverlayHeight + 40 : 220),
                   left: "50%",
                   transform: "translateX(-50%)",
                   zIndex: 1001,
