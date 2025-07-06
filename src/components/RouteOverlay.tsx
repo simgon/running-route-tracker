@@ -43,6 +43,8 @@ interface RouteOverlayProps {
   onReorderRoutes?: (newOrder: RunningRoute[]) => void;
   overlayHeight?: number;
   onHeightChange?: (height: number) => void;
+  isCreationMode?: boolean;
+  isEditMode?: boolean;
 }
 
 const RouteOverlay: React.FC<RouteOverlayProps> = ({
@@ -62,6 +64,8 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
   onReorderRoutes,
   overlayHeight = 180,
   onHeightChange,
+  isCreationMode = false,
+  isEditMode = false,
 }) => {
   const isMobile = window.innerWidth <= 768;
   const [isDragging, setIsDragging] = React.useState(false);
@@ -286,8 +290,8 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
           position: "relative",
         }}
       >
-        {/* 全表示ボタン - 左 */}
-        {routes.length > 1 && onToggleAllRoutes && (
+        {/* 全表示ボタン - 左（編集・作成時は非表示） */}
+        {routes.length > 1 && onToggleAllRoutes && !isCreationMode && !isEditMode && (
           <Button
             variant={visibleRoutes.size === routes.length ? "contained" : "outlined"}
             color={visibleRoutes.size === routes.length ? "error" : "success"}

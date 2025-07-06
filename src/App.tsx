@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
-import { DirectionsRun, Person } from "@mui/icons-material";
+import { Box, IconButton, Tooltip } from "@mui/material";
+import { DirectionsRun, Person, SaveAlt, Cancel, Backspace } from "@mui/icons-material";
 import GoogleMap from "./components/GoogleMap";
 import SaveRouteModal from "./components/SaveRouteModal";
 import EditRouteModal from "./components/EditRouteModal";
@@ -81,22 +82,7 @@ const AppContent: React.FC = () => {
 
   const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
 
-  // マップオーバーレイボタンの共通スタイル
-  const overlayButtonStyle = {
-    padding: "8px 16px",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-    fontWeight: "normal",
-    boxShadow: "none",
-    color: "white",
-    fontSize: "14px",
-  } as const;
 
-  const getButtonStyle = (bgColor: string) => ({
-    ...overlayButtonStyle,
-    backgroundColor: `rgba(${bgColor}, 0.9)`,
-  });
 
   // トースト通知表示関数
   const showToast = (message: string, type: "success" | "error") => {
@@ -875,23 +861,7 @@ const AppContent: React.FC = () => {
                 maxWidth: "250px",
               }}
             >
-              {isEditMode && (
-                <>
-                  <button onClick={applyEdit} style={getButtonStyle("40, 167, 69")}>
-                    💾 保存
-                  </button>
-                  <button onClick={stopEditMode} style={getButtonStyle("108, 117, 125")}>
-                    ❌ キャンセル
-                  </button>
-                  <button
-                    onClick={handleRemoveLastPin}
-                    style={getButtonStyle("255, 193, 7")}
-                    disabled={editableRoute.length === 0}
-                  >
-                    🗑️ 末尾削除
-                  </button>
-                </>
-              )}
+              {/* 編集時のボタンはRouteOverlayに移動したため非表示 */}
 
               {loading && (
                 <div
@@ -919,33 +889,7 @@ const AppContent: React.FC = () => {
                   ❌ {error.message}
                 </div>
               )}
-              {isCreationMode && (
-                // 手動作成モード：保存とクリアボタンのみ
-                <>
-                  <button
-                    onClick={() => setShowSaveModal(true)}
-                    style={getButtonStyle("40, 167, 69")}
-                  >
-                    💾 保存
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEditableRoute([]);
-                      setIsCreationMode(false); // 手動作成モード終了
-                    }}
-                    style={getButtonStyle("108, 117, 125")}
-                  >
-                    ❌ キャンセル
-                  </button>
-                  <button
-                    onClick={handleRemoveLastPin}
-                    style={getButtonStyle("255, 193, 7")}
-                    disabled={editableRoute.length === 0}
-                  >
-                    🗑️ 末尾削除
-                  </button>
-                </>
-              )}
+              {/* 作成・編集時のボタンはRouteOverlayに移動したため非表示 */}
             </div>
 
             {/* モード説明 */}
@@ -1042,6 +986,93 @@ const AppContent: React.FC = () => {
               </div>
             )}
 
+            {/* 編集・作成時のアクションボタン領域 */}
+            {(isCreationMode || isEditMode) && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  bottom: isRouteOverlayExpanded ? routeOverlayHeight + 40 : 220,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: 1001,
+                  backgroundColor: "rgba(255, 255, 255, 0.95)",
+                  borderRadius: 3,
+                  p: 1.5,
+                  boxShadow: 3,
+                  backdropFilter: "blur(10px)",
+                  display: "flex",
+                  gap: 1,
+                  alignItems: "center",
+                }}
+              >
+                {/* 保存ボタン */}
+                <Tooltip title="保存">
+                  <IconButton
+                    onClick={() => {
+                      if (isEditMode) {
+                        applyEdit();
+                      } else {
+                        setShowSaveModal(true);
+                      }
+                    }}
+                    size="medium"
+                    sx={{
+                      backgroundColor: "success.main",
+                      color: "white",
+                      "&:hover": {
+                        backgroundColor: "success.dark",
+                      },
+                    }}
+                  >
+                    <SaveAlt />
+                  </IconButton>
+                </Tooltip>
+                
+                {/* 末尾削除ボタン */}
+                <Tooltip title="末尾ピン削除">
+                  <IconButton
+                    onClick={handleRemoveLastPin}
+                    size="medium"
+                    disabled={editableRoute.length === 0}
+                    sx={{
+                      backgroundColor: editableRoute.length === 0 ? "grey.400" : "warning.main",
+                      color: "white",
+                      "&:hover": {
+                        backgroundColor: editableRoute.length === 0 ? "grey.400" : "warning.dark",
+                      },
+                    }}
+                  >
+                    <Backspace />
+                  </IconButton>
+                </Tooltip>
+                
+                {/* キャンセルボタン */}
+                <Tooltip title="キャンセル">
+                  <IconButton
+                    onClick={() => {
+                      if (isEditMode) {
+                        stopEditMode();
+                      } else {
+                        setIsCreationMode(false);
+                        setEditableRoute([]);
+                        setSelectedRouteId(undefined);
+                      }
+                    }}
+                    size="medium"
+                    sx={{
+                      backgroundColor: "error.main",
+                      color: "white",
+                      "&:hover": {
+                        backgroundColor: "error.dark",
+                      },
+                    }}
+                  >
+                    <Cancel />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            )}
+
             {/* ルートオーバーレイ */}
             <RouteOverlay
               routes={savedRoutes}
@@ -1060,6 +1091,8 @@ const AppContent: React.FC = () => {
               onToggleExpanded={handleToggleRouteOverlayExpanded}
               overlayHeight={routeOverlayHeight}
               onHeightChange={handleRouteOverlayHeightChange}
+              isCreationMode={isCreationMode}
+              isEditMode={isEditMode}
             />
           </div>
         </div>
