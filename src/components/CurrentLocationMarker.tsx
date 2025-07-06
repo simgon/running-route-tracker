@@ -20,14 +20,14 @@ const CurrentLocationMarker: React.FC<CurrentLocationMarkerProps> = ({
     const createLocationIcon = (heading: number) => {
       console.log("CurrentLocationMarker: heading =", heading);
 
-      const size = 100;
+      const size = 120; // SVGサイズを拡大
       const centerX = size / 2;
       const centerY = size / 2;
       const radius = 10;
 
       // 方向を示す扇形のパス（60度の角度）
       const fanAngle = 60; // 度
-      const fanLength = 100;
+      const fanLength = 50; // 扇形の長さを短縮
       const startAngle = heading - fanAngle / 2;
       const endAngle = heading + fanAngle / 2;
 

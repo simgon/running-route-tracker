@@ -97,11 +97,14 @@ const getCompassHeading = (): Promise<number> => {
     // ジャイロスコープと地磁気をセンサーから取得
     const orientationHandler = (event: any) => {
       if (os === "iphone") {
-        // webkitCompassHeading値を採用
+        // webkitCompassHeading値を採用（そのまま使用）
         degrees = event.webkitCompassHeading || event.alpha || 0;
       } else {
         // deviceorientationabsoluteイベントのalphaを補正
-        degrees = compassHeading(event.alpha || 0, event.beta || 0, event.gamma || 0);
+        let correctedHeading = compassHeading(event.alpha || 0, event.beta || 0, event.gamma || 0);
+        // 90度補正（座標系の違いを調整）
+        correctedHeading = (correctedHeading + 90) % 360;
+        degrees = correctedHeading;
       }
     };
 
@@ -283,7 +286,6 @@ const AppContent: React.FC = () => {
       // コンパス方向を取得（モバイルデバイスの場合）
       deviceHeading = await getCompassHeading();
 
-      alert(deviceHeading);
 
       // 現在位置マーカーを表示
       setCurrentLocationMarker({
