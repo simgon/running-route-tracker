@@ -1215,12 +1215,13 @@ const AppContent: React.FC = () => {
                       }
                     }}
                     sx={{
-                      backgroundColor: "success.main",
+                      backgroundColor: "rgba(76, 175, 80, 0.8)",
                       color: "white",
                       width: 56,
                       height: 56,
+                      boxShadow: "none",
                       "&:hover": {
-                        backgroundColor: "success.dark",
+                        backgroundColor: "rgba(76, 175, 80, 1)",
                       },
                     }}
                   >
@@ -1241,12 +1242,13 @@ const AppContent: React.FC = () => {
                       }
                     }}
                     sx={{
-                      backgroundColor: "info.main",
+                      backgroundColor: "rgba(76, 175, 80, 0.8)",
                       color: "white",
                       width: 56,
                       height: 56,
+                      boxShadow: "none",
                       "&:hover": {
-                        backgroundColor: "info.dark",
+                        backgroundColor: "rgba(76, 175, 80, 1)",
                       },
                     }}
                   >
@@ -1260,12 +1262,13 @@ const AppContent: React.FC = () => {
                     <IconButton
                       onClick={handleCrosshairAction}
                       sx={{
-                        backgroundColor: "primary.main",
+                        backgroundColor: "rgba(76, 175, 80, 0.9)",
                         color: "white",
                         width: 70,
                         height: 70,
+                        boxShadow: "none",
                         "&:hover": {
-                          backgroundColor: "primary.dark",
+                          backgroundColor: "rgba(76, 175, 80, 1)",
                         },
                       }}
                     >
@@ -1279,12 +1282,13 @@ const AppContent: React.FC = () => {
                     <IconButton
                       onClick={handleCrosshairAction}
                       sx={{
-                        backgroundColor: "secondary.main",
+                        backgroundColor: "rgba(76, 175, 80, 0.9)",
                         color: "white",
                         width: 70,
                         height: 70,
+                        boxShadow: "none",
                         "&:hover": {
-                          backgroundColor: "secondary.dark",
+                          backgroundColor: "rgba(76, 175, 80, 1)",
                         },
                       }}
                     >
@@ -1298,12 +1302,13 @@ const AppContent: React.FC = () => {
                     <IconButton
                       onClick={handleCrosshairAction}
                       sx={{
-                        backgroundColor: "warning.main",
+                        backgroundColor: "rgba(76, 175, 80, 0.9)",
                         color: "white",
                         width: 70,
                         height: 70,
+                        boxShadow: "none",
                         "&:hover": {
-                          backgroundColor: "warning.dark",
+                          backgroundColor: "rgba(76, 175, 80, 1)",
                         },
                       }}
                     >
@@ -1313,15 +1318,17 @@ const AppContent: React.FC = () => {
                 )}
 
                 {/* 4. 末尾削除ボタン */}
-                <Tooltip title="末尾ピン削除">
+                <Tooltip title={editableRoute.length === 0 ? "削除するピンがありません" : "末尾ピン削除"}>
                   <IconButton
-                    onClick={handleRemoveLastPin}
-                    disabled={editableRoute.length === 0}
+                    onClick={editableRoute.length === 0 ? undefined : handleRemoveLastPin}
                     sx={{
-                      backgroundColor: editableRoute.length === 0 ? "grey.400" : "warning.main",
+                      backgroundColor: editableRoute.length === 0 ? "rgba(76, 175, 80, 0.4)" : "rgba(76, 175, 80, 0.8)",
                       color: "white",
+                      opacity: editableRoute.length === 0 ? 0.6 : 1,
+                      cursor: editableRoute.length === 0 ? "not-allowed" : "pointer",
+                      boxShadow: "none",
                       "&:hover": {
-                        backgroundColor: editableRoute.length === 0 ? "grey.400" : "warning.dark",
+                        backgroundColor: editableRoute.length === 0 ? "rgba(76, 175, 80, 0.4)" : "rgba(76, 175, 80, 1)",
                       },
                       width: 60,
                       height: 60,
@@ -1344,12 +1351,13 @@ const AppContent: React.FC = () => {
                       }
                     }}
                     sx={{
-                      backgroundColor: "error.main",
+                      backgroundColor: "rgba(76, 175, 80, 0.8)",
                       color: "white",
                       width: 56,
                       height: 56,
+                      boxShadow: "none",
                       "&:hover": {
-                        backgroundColor: "error.dark",
+                        backgroundColor: "rgba(76, 175, 80, 1)",
                       },
                     }}
                   >
