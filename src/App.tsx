@@ -354,6 +354,8 @@ const AppContent: React.FC = () => {
         // 現在通常表示モードの場合：編集モードに切り替え
         setIsEditMode(true);
         setEditableRoute([...loadedRoute]); // loadedRouteの内容をeditableRouteにコピー
+        // 編集モードに入る時のみマップビューを調整
+        fitMapToRoute(loadedRoute);
       }
       setIsCreationMode(false);
       return;
@@ -366,8 +368,7 @@ const AppContent: React.FC = () => {
     setLoadedRoute(routePoints);
     setEditableRoute([]); // 編集モードではないため空にする
 
-    // マップビューをルートに合わせて移動
-    fitMapToRoute(routePoints);
+    // 通常表示モードではマップ移動しない（現在のビューを維持）
   }, [selectedRouteId, isEditMode, loadedRoute]);
 
   // ルートの表示/非表示を切り替える
