@@ -41,9 +41,9 @@ const CurrentLocationMarker: React.FC<CurrentLocationMarkerProps> = ({
       return {
         url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
           <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
-            <!-- 方向を示す扇形 -->
+            ${heading !== 0 ? `<!-- 方向を示す扇形 -->
             <path d="M ${centerX} ${centerY} L ${startX} ${startY} A ${fanLength} ${fanLength} 0 0 1 ${endX} ${endY} Z" 
-                  fill="rgba(25, 118, 210, 0.3)" stroke="none"/>
+                  fill="rgba(25, 118, 210, 0.3)" stroke="none"/>` : ''}
             <!-- 青い丸 -->
             <circle cx="${centerX}" cy="${centerY}" r="${radius}" 
                     fill="#1976d2" stroke="white" stroke-width="3"/>
