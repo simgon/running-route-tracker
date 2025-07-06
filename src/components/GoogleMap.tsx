@@ -1290,6 +1290,26 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               return;
             }
 
+            // 選択ルートの距離ラベル間引き処理
+            if (isSelected) {
+              const currentZoom = mapRef.current?.getZoom() || 15;
+              // ズームレベルに応じて間引きの間隔を調整
+              let skipInterval = 1; // デフォルトは全て表示
+              
+              if (currentZoom <= 13) {
+                skipInterval = 8; // 低ズーム時は8つおきに表示
+              } else if (currentZoom <= 15) {
+                skipInterval = 4; // 中ズーム時は4つおきに表示
+              } else if (currentZoom <= 17) {
+                skipInterval = 2; // 高ズーム時は2つおきに表示
+              }
+              
+              // 最初と最後のポイントは常に表示、それ以外は間引き
+              if (pointIndex !== 0 && pointIndex !== path.length - 1 && pointIndex % skipInterval !== 0) {
+                return;
+              }
+            }
+
             // 通常ルート時と同じ重なり処理を使用
             const currentZoom = mapRef.current?.getZoom() || 15;
             const allPointsForRoute = path.map(p => ({ 
