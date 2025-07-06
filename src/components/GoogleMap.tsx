@@ -17,6 +17,7 @@ interface GoogleMapProps {
   isEditMode?: boolean;
   onPointDrag?: (index: number, lat: number, lng: number) => void;
   onPointDelete?: (index: number) => void;
+  onPointClick?: (index: number) => void;
   onRouteLineClick?: (lat: number, lng: number) => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
@@ -29,6 +30,7 @@ interface GoogleMapProps {
     heading: number;
   } | null;
   onCurrentLocationFadeComplete?: () => void;
+  onPointDoubleClick?: (index: number) => void;
 }
 
 const MapComponent: React.FC<GoogleMapProps> = ({
@@ -44,6 +46,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   isEditMode = false,
   onPointDrag,
   onPointDelete,
+  onPointClick,
   onRouteLineClick,
   onDragStart,
   onDragEnd,
@@ -53,6 +56,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   onRouteSelect,
   currentLocationMarker,
   onCurrentLocationFadeComplete,
+  onPointDoubleClick,
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -314,8 +318,178 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   onPointDragRef.current = onPointDrag;
   onPointDeleteRef.current = onPointDelete;
 
+  // 距離ラベルとピンの位置を管理する配列
+  const labelPositionsRef = useRef<{ lat: number; lng: number }[]>([]);
+  const pinPositionsRef = useRef<{ lat: number; lng: number }[]>([]);
+
+  // 重なりを避けるためのピンと距離ラベル位置計算関数（全体最適化版）
+  const calculateAllPositions = (allPoints: RoutePoint[], currentZoom: number = 15) => {
+    // ズーム値に応じてオフセットを調整（ズームが高い＝拡大時は小さく、ズームが低い＝縮小時は大きく）
+    const zoomFactor = Math.pow(2, 15 - currentZoom); // 基準ズーム15からの倍率
+    const pinOffsetY = 0.00015 * zoomFactor; // ピン用のY方向オフセット（ズーム対応、調整）
+    const labelOffsetY = 0.0002 * zoomFactor; // 距離ラベル用のY方向オフセット（ズーム対応、調整）
+    const labelOffsetYStep = 0.00012 * zoomFactor; // 距離ラベル用のY方向調整ステップ（ズーム対応、調整）
+    const overlapThreshold = 0.0002 * zoomFactor; // ピン重なり判定閾値（ズーム対応、調整）
+    const labelOverlapThreshold = 0.00025 * zoomFactor; // 距離ラベル重なり判定閾値（ズーム対応、調整）
+
+    const pinPositions: { lat: number; lng: number }[] = [];
+    const labelPositions: { lat: number; lng: number }[] = [];
+
+    // ズーム11以下の場合は重なり考慮不要
+    const skipOverlapCalculation = currentZoom <= 11;
+
+    for (let currentIndex = 0; currentIndex < allPoints.length; currentIndex++) {
+      const currentPoint = allPoints[currentIndex];
+
+      // ピンの候補位置リスト（上方向にずらす）
+      const pinCandidates = [
+        { lat: currentPoint.lat, lng: currentPoint.lng }, // 中央（通常位置）
+        { lat: currentPoint.lat + pinOffsetY, lng: currentPoint.lng }, // 上
+        { lat: currentPoint.lat + pinOffsetY * 5, lng: currentPoint.lng }, // 上（遠）
+        { lat: currentPoint.lat + pinOffsetY * 10, lng: currentPoint.lng }, // 上（最遠）
+        { lat: currentPoint.lat + pinOffsetY * 15, lng: currentPoint.lng }, // 上（超遠）
+        { lat: currentPoint.lat + pinOffsetY * 20, lng: currentPoint.lng }, // 上（極遠）
+        { lat: currentPoint.lat + pinOffsetY * 25, lng: currentPoint.lng }, // 上（最極遠）
+      ];
+
+      // ピンの最適な位置を見つける
+      let bestPinPosition = pinCandidates[0];
+
+      // ズーム11以下の場合は重なり計算をスキップ
+      if (!skipOverlapCalculation) {
+        for (const candidatePos of pinCandidates) {
+          let hasOverlap = false;
+
+          // すでに配置されたピンとの重なりをチェック
+          for (let i = 0; i < currentIndex; i++) {
+            const existingPinPos = pinPositions[i];
+
+            const distance = Math.sqrt(
+              Math.pow(candidatePos.lat - existingPinPos.lat, 2) +
+                Math.pow(candidatePos.lng - existingPinPos.lng, 2)
+            );
+
+            if (distance < overlapThreshold) {
+              hasOverlap = true;
+              break;
+            }
+          }
+
+          // 重なりがない位置が見つかったら採用
+          if (!hasOverlap) {
+            bestPinPosition = candidatePos;
+            break;
+          }
+        }
+      }
+
+      pinPositions.push(bestPinPosition);
+
+      // 距離ラベルの位置計算（重なりを避けて上方向に調整）
+      let labelYOffset = labelOffsetY;
+      let labelPosition = {
+        lat: bestPinPosition.lat + labelYOffset,
+        lng: bestPinPosition.lng,
+      };
+
+      // 既存の距離ラベルとの重なりをチェックして上方向に調整（ズーム11以下の場合はスキップ）
+      if (!skipOverlapCalculation) {
+        let labelHasOverlap = true;
+        let attempts = 0;
+        const maxAttempts = 10; // 最大調整回数
+
+        while (labelHasOverlap && attempts < maxAttempts) {
+          labelHasOverlap = false;
+
+          // すでに配置された距離ラベルとの重なりをチェック
+          for (let i = 0; i < currentIndex; i++) {
+            const existingLabelPos = labelPositions[i];
+
+            const distance = Math.sqrt(
+              Math.pow(labelPosition.lat - existingLabelPos.lat, 2) +
+                Math.pow(labelPosition.lng - existingLabelPos.lng, 2)
+            );
+
+            if (distance < labelOverlapThreshold) {
+              labelHasOverlap = true;
+              break;
+            }
+          }
+
+          // 重なりがある場合は上にずらす
+          if (labelHasOverlap) {
+            labelYOffset += labelOffsetYStep;
+            labelPosition = {
+              lat: bestPinPosition.lat + labelYOffset,
+              lng: bestPinPosition.lng,
+            };
+            attempts++;
+          }
+        }
+      }
+
+      labelPositions.push(labelPosition);
+    }
+
+    return { pinPositions, labelPositions };
+  };
+
+  // 個別の位置計算関数（互換性のため）
+  const calculateLabelPosition = (
+    currentPoint: RoutePoint,
+    currentIndex: number,
+    allPoints: RoutePoint[]
+  ) => {
+    // 全体最適化された位置を取得
+    if (
+      labelPositionsRef.current.length === 0 ||
+      labelPositionsRef.current.length !== allPoints.length
+    ) {
+      const currentZoom = mapRef.current?.getZoom() || 15;
+      const positions = calculateAllPositions(allPoints, currentZoom);
+      labelPositionsRef.current = positions.labelPositions;
+      pinPositionsRef.current = positions.pinPositions;
+    }
+
+    return (
+      labelPositionsRef.current[currentIndex] || {
+        lat: currentPoint.lat + 0.0006,
+        lng: currentPoint.lng,
+      }
+    );
+  };
+
+  // ピンの位置を取得する関数
+  const calculatePinPosition = (
+    currentPoint: RoutePoint,
+    currentIndex: number,
+    allPoints: RoutePoint[]
+  ) => {
+    // 全体最適化された位置を取得
+    if (
+      pinPositionsRef.current.length === 0 ||
+      pinPositionsRef.current.length !== allPoints.length
+    ) {
+      const currentZoom = mapRef.current?.getZoom() || 15;
+      const positions = calculateAllPositions(allPoints, currentZoom);
+      labelPositionsRef.current = positions.labelPositions;
+      pinPositionsRef.current = positions.pinPositions;
+    }
+
+    return (
+      pinPositionsRef.current[currentIndex] || {
+        lat: currentPoint.lat,
+        lng: currentPoint.lng,
+      }
+    );
+  };
+
   // ルートポイントマーカーの描画（編集モード、手動作成モード、または個別ルート表示時）
   useEffect(() => {
+    // ルートポイントが変更された時に位置キャッシュをリセット
+    labelPositionsRef.current = [];
+    pinPositionsRef.current = [];
+
     // 表示すべき状態かチェック（編集モードまたは手動作成モード時は常に表示）
     const shouldShowMarkersAndLabels =
       isEditMode || isCreationMode || (routePoints.length > 0 && visibleRoutes.size === 0);
@@ -378,10 +552,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             return `${(meters / 1000).toFixed(2)}km`;
           };
 
-          distanceLabelsRef.current[index].setPosition({
-            lat: point.lat + 0.00008, // ピンが小さくなったので距離を調整
-            lng: point.lng,
-          });
+          const labelPosition = calculateLabelPosition(point, index, routePoints);
+          distanceLabelsRef.current[index].setPosition(labelPosition);
 
           // 距離ラベルのアイコンも更新
           distanceLabelsRef.current[index].setIcon({
@@ -394,7 +566,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               </svg>
             `)}`,
             scaledSize: new google.maps.Size(60, 20),
-            anchor: new google.maps.Point(30, 25),
+            anchor: new google.maps.Point(30, 30),
           });
         }
       });
@@ -489,6 +661,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         });
 
         let longTapTimer: NodeJS.Timeout | null = null;
+        let deleteTimer: NodeJS.Timeout | null = null;
         let touchStartTime = 0;
         let dragModeActive = false; // ドラッグモードの状態を管理
         let isManuallyDragging = false; // 手動ドラッグ中フラグ
@@ -506,13 +679,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
           // 左クリック（button 0）またはタッチ
           if (e.domEvent && (e.domEvent.button === 0 || e.domEvent.type === "touchstart")) {
-            // イベントの伝播と デフォルト動作を完全に停止
-            e.stop();
-            if (e.domEvent) {
-              e.domEvent.stopPropagation();
-              e.domEvent.preventDefault();
-              e.domEvent.stopImmediatePropagation();
-            }
+            // 最初はイベントを止めずに、ドラッグ開始時のみ止める
+            // e.domEvent.preventDefault(); // コメントアウト
 
             touchStartTime = Date.now();
 
@@ -548,54 +716,96 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             document.addEventListener("mousemove", globalMouseMoveListener);
             document.addEventListener("touchmove", globalTouchMoveListener, { passive: false });
 
-            // 即座にドラッグモード開始
-            dragModeActive = true;
-            isDraggingRef.current = true;
-
-            // ドラッグ開始コールバック
-            if (onDragStart) {
-              onDragStart();
-            }
-
-            // マーカーのドラッグを有効化
-            marker.setDraggable(true);
-
-            // マーカーの色を変更してドラッグモード中を示す
-            marker.setIcon({
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: isStart || isEnd ? 10 : 8,
-              fillColor: "#FF69B4",
-              fillOpacity: 1,
-              strokeColor: "#FFFFFF",
-              strokeWeight: 2,
-            });
-
-            // マップのドラッグを無効化
-            if (mapRef.current) {
-              mapRef.current.setOptions({ draggable: false });
-            }
-
-            // 即座に手動ドラッグを開始
-            isManuallyDragging = true;
-
-            // 1秒後（1000ms）で削除処理
+            // 500ms後にドラッグモードを開始
             longTapTimer = setTimeout(() => {
-              // 1秒間ロングタップで削除
-              if (onPointDeleteRef.current) {
-                console.log("1 second long tap detected - deleting pin", index);
-                onPointDeleteRef.current(index);
+              // ドラッグモード開始
+              dragModeActive = true;
+              isDraggingRef.current = true;
+
+              // ドラッグ開始コールバック
+              if (onDragStart) {
+                onDragStart();
               }
-            }, 1000); // 1000ms
+
+              // マーカーのドラッグを有効化
+              marker.setDraggable(true);
+
+              // マーカーの色を変更してドラッグモード中を示す
+              marker.setIcon({
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: isStart || isEnd ? 10 : 8,
+                fillColor: "#FF69B4",
+                fillOpacity: 1,
+                strokeColor: "#FFFFFF",
+                strokeWeight: 2,
+              });
+
+              // マップのドラッグを無効化
+              if (mapRef.current) {
+                mapRef.current.setOptions({ draggable: false });
+              }
+
+              // 手動ドラッグを開始
+              isManuallyDragging = true;
+
+              // さらに1秒後（合計1.5秒）で削除処理
+              deleteTimer = setTimeout(() => {
+                if (onPointDeleteRef.current) {
+                  console.log("1.5 second long tap detected - deleting pin", index);
+
+                  // 削除前にマーカーのドラッグを完全に無効化
+                  marker.setDraggable(false);
+                  dragModeActive = false;
+                  isDraggingRef.current = false;
+                  isManuallyDragging = false;
+
+                  // マーカーを地図から削除
+                  marker.setMap(null);
+
+                  // すべてのイベントリスナーをクリア
+                  google.maps.event.clearInstanceListeners(marker);
+
+                  // グローバルリスナーもクリーンアップ
+                  if (globalMouseUpListener) {
+                    document.removeEventListener("mouseup", globalMouseUpListener);
+                    globalMouseUpListener = null;
+                  }
+                  if (globalTouchEndListener) {
+                    document.removeEventListener("touchend", globalTouchEndListener);
+                    globalTouchEndListener = null;
+                  }
+                  if (globalMouseMoveListener) {
+                    document.removeEventListener("mousemove", globalMouseMoveListener);
+                    globalMouseMoveListener = null;
+                  }
+                  if (globalTouchMoveListener) {
+                    document.removeEventListener("touchmove", globalTouchMoveListener);
+                    globalTouchMoveListener = null;
+                  }
+
+                  // 削除処理を実行
+                  onPointDeleteRef.current(index);
+                }
+              }, 1000); // さらに1000ms後
+            }, 200); // 500ms長押しでドラッグモード開始
           }
         };
 
         // グローバルなマウス/タッチムーブ処理（ロングタップ後のドラッグ用）
         const handleGlobalMouseMove = (e: MouseEvent) => {
+          // マーカーが削除されている場合は処理を中止
+          if (!marker.getMap()) {
+            return;
+          }
           if (dragModeActive && isManuallyDragging && mapRef.current) {
             // 実際にドラッグが開始されたら削除タイマーをクリア
             if (longTapTimer) {
               clearTimeout(longTapTimer);
               longTapTimer = null;
+            }
+            if (deleteTimer) {
+              clearTimeout(deleteTimer);
+              deleteTimer = null;
             }
 
             // マウス座標をマップ座標に変換
@@ -625,11 +835,19 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         };
 
         const handleGlobalTouchMove = (e: TouchEvent) => {
+          // マーカーが削除されている場合は処理を中止
+          if (!marker.getMap()) {
+            return;
+          }
           if (dragModeActive && isManuallyDragging && mapRef.current && e.touches.length > 0) {
             // 実際にドラッグが開始されたら削除タイマーをクリア
             if (longTapTimer) {
               clearTimeout(longTapTimer);
               longTapTimer = null;
+            }
+            if (deleteTimer) {
+              clearTimeout(deleteTimer);
+              deleteTimer = null;
             }
 
             const touch = e.touches[0];
@@ -665,6 +883,11 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           if (longTapTimer) {
             clearTimeout(longTapTimer);
             longTapTimer = null;
+          }
+          // 削除タイマーもクリア
+          if (deleteTimer) {
+            clearTimeout(deleteTimer);
+            deleteTimer = null;
           }
 
           // ドラッグモード終了処理
@@ -742,10 +965,39 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             }
             return;
           }
+
+          // シンプルなクリック処理
+          if (onPointClick) {
+            onPointClick(index);
+          }
+        });
+
+        // ダブルクリックイベント（往復ルート追加用）
+        marker.addListener("dblclick", (e: google.maps.MapMouseEvent) => {
+          if (!isEditMode && !isCreationMode) return;
+
+          // ドラッグモード中はダブルクリックを無視
+          if (dragModeActive || isDraggingRef.current) {
+            e.stop();
+            if (e.domEvent) {
+              e.domEvent.stopPropagation();
+              e.domEvent.preventDefault();
+            }
+            return;
+          }
+
+          // 往復ルート追加処理
+          if (onPointDoubleClick) {
+            onPointDoubleClick(index);
+          }
         });
 
         // マーカーのネイティブドラッグイベント
         marker.addListener("drag", (e: google.maps.MapMouseEvent) => {
+          // マーカーが削除されている場合は処理を中止
+          if (!marker.getMap()) {
+            return;
+          }
           if (e.latLng) {
             if (onPointDragRef.current) {
               onPointDragRef.current(index, e.latLng.lat(), e.latLng.lng());
@@ -795,6 +1047,18 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             e.domEvent.preventDefault();
           }
           if (isEditMode || isCreationMode) {
+            // 削除前にマーカーのドラッグを完全に無効化
+            marker.setDraggable(false);
+            dragModeActive = false;
+            isDraggingRef.current = false;
+            isManuallyDragging = false;
+
+            // マーカーを地図から削除
+            marker.setMap(null);
+
+            // すべてのイベントリスナーをクリア
+            google.maps.event.clearInstanceListeners(marker);
+
             // 最新のonPointDelete関数を使用
             if (onPointDeleteRef.current) {
               onPointDeleteRef.current(index);
@@ -812,11 +1076,10 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           return `${(meters / 1000).toFixed(2)}km`;
         };
 
+        const labelPosition = calculateLabelPosition(point, index, routePoints);
+
         const distanceLabel = new google.maps.Marker({
-          position: {
-            lat: point.lat + 0.00008, // ピンが小さくなったので距離を調整
-            lng: point.lng,
-          },
+          position: labelPosition,
           map: mapRef.current!,
           icon: {
             url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
@@ -828,7 +1091,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               </svg>
             `)}`,
             scaledSize: new google.maps.Size(60, 20),
-            anchor: new google.maps.Point(30, 25), // 中心点を調整
+            anchor: new google.maps.Point(30, 30), // 中心点を調整
           },
           zIndex: isEditMode || isCreationMode ? 800 : 50, // 編集・作成時の距離ラベル最前面表示
         });
@@ -1027,11 +1290,22 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               return;
             }
 
+            // 通常ルート時と同じ重なり処理を使用
+            const currentZoom = mapRef.current?.getZoom() || 15;
+            const allPointsForRoute = path.map(p => ({ 
+              lat: p.lat, 
+              lng: p.lng, 
+              timestamp: Date.now(), 
+              accuracy: 1 
+            }));
+            const positions = calculateAllPositions(allPointsForRoute, currentZoom);
+            const labelPosition = positions.labelPositions[pointIndex] || {
+              lat: point.lat + (isSelected ? 0.0002 : 0.00015),
+              lng: point.lng,
+            };
+
             const distanceLabel = new google.maps.Marker({
-              position: {
-                lat: point.lat + (isSelected ? 0.00008 : 0.00006),
-                lng: point.lng,
-              },
+              position: labelPosition,
               map: mapRef.current!,
               icon: {
                 url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
@@ -1053,7 +1327,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                   </svg>
                 `)}`,
                 scaledSize: new google.maps.Size(isSelected ? 60 : 45, isSelected ? 20 : 16),
-                anchor: new google.maps.Point(isSelected ? 30 : 22.5, isSelected ? 25 : 20),
+                anchor: new google.maps.Point(isSelected ? 30 : 22.5, isSelected ? 30 : 24),
               },
               zIndex: isSelected
                 ? 300
@@ -1102,6 +1376,7 @@ interface GoogleMapWrapperProps {
   isEditMode?: boolean;
   onPointDrag?: (index: number, lat: number, lng: number) => void;
   onPointDelete?: (index: number) => void;
+  onPointClick?: (index: number) => void;
   onRouteLineClick?: (lat: number, lng: number) => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
@@ -1114,6 +1389,7 @@ interface GoogleMapWrapperProps {
     heading: number;
   } | null;
   onCurrentLocationFadeComplete?: () => void;
+  onPointDoubleClick?: (index: number) => void;
 }
 
 const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
@@ -1130,6 +1406,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
   isEditMode,
   onPointDrag,
   onPointDelete,
+  onPointClick,
   onRouteLineClick,
   onDragStart,
   onDragEnd,
@@ -1139,6 +1416,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
   onRouteSelect,
   currentLocationMarker,
   onCurrentLocationFadeComplete,
+  onPointDoubleClick,
 }) => {
   const render = (status: any) => {
     switch (status) {
@@ -1161,6 +1439,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
             isEditMode={isEditMode}
             onPointDrag={onPointDrag}
             onPointDelete={onPointDelete}
+            onPointClick={onPointClick}
             onRouteLineClick={onRouteLineClick}
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
@@ -1170,6 +1449,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
             onRouteSelect={onRouteSelect}
             currentLocationMarker={currentLocationMarker}
             onCurrentLocationFadeComplete={onCurrentLocationFadeComplete}
+            onPointDoubleClick={onPointDoubleClick}
           />
         );
       default:
@@ -1192,6 +1472,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
         isEditMode={isEditMode}
         onPointDrag={onPointDrag}
         onPointDelete={onPointDelete}
+        onPointClick={onPointClick}
         onRouteLineClick={onRouteLineClick}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
@@ -1201,6 +1482,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
         onRouteSelect={onRouteSelect}
         currentLocationMarker={currentLocationMarker}
         onCurrentLocationFadeComplete={onCurrentLocationFadeComplete}
+        onPointDoubleClick={onPointDoubleClick}
       />
     </Wrapper>
   );

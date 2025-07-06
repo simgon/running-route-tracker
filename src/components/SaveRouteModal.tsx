@@ -71,7 +71,7 @@ const SaveRouteModal: React.FC<SaveRouteModalProps> = ({
 
     try {
       setError("");
-      const customDuration = useManualDuration ? getManualDurationMs() : undefined;
+      const customDuration = useManualDuration ? getManualDurationSeconds() : undefined;
       await onSave(name.trim(), description.trim() || undefined, customDuration);
       // 成功時はリセット
       setName("");
@@ -82,11 +82,11 @@ const SaveRouteModal: React.FC<SaveRouteModalProps> = ({
     }
   };
 
-  const getManualDurationMs = (): number => {
+  const getManualDurationSeconds = (): number => {
     const h = parseInt(hours, 10) || 0;
     const m = parseInt(minutes, 10) || 0;
     const s = parseInt(seconds, 10) || 0;
-    return (h * 3600 + m * 60 + s) * 1000;
+    return h * 3600 + m * 60 + s;
   };
 
   const getManualDurationText = (): string => {

@@ -93,11 +93,11 @@ const EditRouteModal: React.FC<EditRouteModalProps> = ({
     return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  const getManualDurationMs = (): number => {
+  const getManualDurationSeconds = (): number => {
     const h = parseInt(hours, 10) || 0;
     const m = parseInt(minutes, 10) || 0;
     const s = parseInt(seconds, 10) || 0;
-    return (h * 3600 + m * 60 + s) * 1000;
+    return h * 3600 + m * 60 + s;
   };
 
   const getManualDurationText = (): string => {
@@ -126,7 +126,7 @@ const EditRouteModal: React.FC<EditRouteModalProps> = ({
       };
 
       if (useManualDuration) {
-        updates.duration = getManualDurationMs();
+        updates.duration = getManualDurationSeconds();
       }
 
       await onSave(route.id, updates);

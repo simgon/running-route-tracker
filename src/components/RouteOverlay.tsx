@@ -644,12 +644,12 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                     transform: "translateX(-50%)",
                     width: isMobile ? 20 : 24,
                     height: isMobile ? 14 : 16,
-                    backgroundColor: "rgba(0,0,0,0.1)",
-                    color: "grey.600",
+                    backgroundColor: "background.paper",
+                    color: "grey.400",
                     cursor: "grab",
                     borderRadius: "4px",
                     "&:hover": {
-                      backgroundColor: "rgba(0,0,0,0.15)",
+                      backgroundColor: "grey.100",
                     },
                     "&:active": {
                       cursor: "grabbing",

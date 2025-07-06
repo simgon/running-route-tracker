@@ -140,8 +140,12 @@ const getCompassHeading = (): Promise<number> => {
     };
 
     // iOSの場合はPermission要求
-    if (os === "iphone" && typeof (DeviceOrientationEvent as any).requestPermission === "function") {
-      (DeviceOrientationEvent as any).requestPermission()
+    if (
+      os === "iphone" &&
+      typeof (DeviceOrientationEvent as any).requestPermission === "function"
+    ) {
+      (DeviceOrientationEvent as any)
+        .requestPermission()
         .then((response: string) => {
           if (response === "granted") {
             setupEventListener();
@@ -208,7 +212,9 @@ const AppContent: React.FC = () => {
   } | null>(null);
   const [isRouteOverlayExpanded, setIsRouteOverlayExpanded] = useState(false);
   const [routeOverlayHeight, setRouteOverlayHeight] = useState(500);
-  const [editingMode, setEditingMode] = useState<"add" | "addOnRoute" | "delete">("add");
+  const [editingMode, setEditingMode] = useState<"add" | "addOnRoute" | "delete" | "roundTrip">(
+    "add"
+  );
   const mapRef = useRef<google.maps.Map | null>(null);
 
   // デフォルトの位置（東京駅）
@@ -276,10 +282,9 @@ const AppContent: React.FC = () => {
         timestamp: new Date(position.timestamp).toLocaleString(),
       });
 
-      // マップを現在位置に移動
+      // マップを現在位置に移動（ズーム調整なし）
       if (mapRef.current) {
         mapRef.current.setCenter(currentPos);
-        mapRef.current.setZoom(18);
       }
 
       // デバイスの方向を取得（DeviceOrientationEventから）
@@ -287,7 +292,6 @@ const AppContent: React.FC = () => {
 
       // コンパス方向を取得（モバイルデバイスの場合）
       deviceHeading = await getCompassHeading();
-
 
       // 現在位置マーカーを表示
       setCurrentLocationMarker({
@@ -436,6 +440,9 @@ const AppContent: React.FC = () => {
         };
         setEditableRoute((prevRoute) => [...prevRoute, newPoint]);
       }
+    } else if (editingMode === "roundTrip") {
+      // 往復追加モード時のメッセージ
+      showToast("ピンをクリックして往復ルートを追加してください", "success");
     }
   };
 
@@ -546,6 +553,7 @@ const AppContent: React.FC = () => {
       try {
         const updatedRoutes = await loadUserRoutes();
         setSavedRoutes(updatedRoutes);
+        setAllRoutes(updatedRoutes);
       } catch (error) {
         console.error("ルート一覧更新エラー:", error);
       }
@@ -657,6 +665,7 @@ const AppContent: React.FC = () => {
       try {
         const routes = await loadUserRoutes();
         setSavedRoutes(routes);
+        setAllRoutes(routes);
       } catch (error) {
         console.error("初期ルート読み込みエラー:", error);
       }
@@ -799,7 +808,7 @@ const AppContent: React.FC = () => {
       const updateData: any = {};
       if (updates.name !== undefined) updateData.name = updates.name;
       if (updates.description !== undefined) updateData.description = updates.description;
-      if (updates.duration !== undefined) updateData.duration = Math.floor(updates.duration / 1000); // ミリ秒を秒に変換
+      if (updates.duration !== undefined) updateData.duration = updates.duration; // 既に秒単位で渡される
 
       // Supabaseでルートを更新
       await updateRunningRoute(routeId, updateData);
@@ -807,6 +816,7 @@ const AppContent: React.FC = () => {
       // オーバーレイのルート一覧を更新
       const updatedRoutes = await loadUserRoutes();
       setSavedRoutes(updatedRoutes);
+      setAllRoutes(updatedRoutes);
 
       showToast("ルートが正常に更新されました！", "success");
     } catch (error) {
@@ -835,15 +845,9 @@ const AppContent: React.FC = () => {
     try {
       // 編集されたルートの距離を再計算
       const newDistance = calculateTotalDistance(editableRoute);
-      const estimatedDuration = Math.floor(newDistance / 3); // 推定時間（秒）
 
-      // 既存ルートを更新
-      await updateRoute(
-        selectedRouteId,
-        editableRoute,
-        newDistance,
-        estimatedDuration * 1000 // 秒をミリ秒に変換
-      );
+      // 既存ルートを更新（時間は更新しない）
+      await updateRoute(selectedRouteId, editableRoute, newDistance);
 
       // 成功後に状態を更新
       setLoadedRoute([...editableRoute]);
@@ -854,6 +858,7 @@ const AppContent: React.FC = () => {
       try {
         const updatedRoutes = await loadUserRoutes();
         setSavedRoutes(updatedRoutes);
+        setAllRoutes(updatedRoutes);
       } catch (error) {
         console.error("ルート一覧更新エラー:", error);
       }
@@ -893,6 +898,35 @@ const AppContent: React.FC = () => {
     [isEditMode, isCreationMode]
   );
 
+  // 往復ルート追加処理
+  const handleAddRoundTrip = React.useCallback(
+    (index: number) => {
+      if (!isEditMode && !isCreationMode) return;
+
+      setEditableRoute((prevRoute) => {
+        const newRoute = [...prevRoute];
+
+        // 末尾ピンからクリックされたピンまでのルートを追加
+        if (index < newRoute.length - 1) {
+          // クリックされたピンが末尾でない場合
+          // 末尾からクリックピンまでの経路を作成（逆順）
+          const fromEndToClick = newRoute.slice(index, newRoute.length).reverse();
+
+          // 既存ルート + 末尾からクリックピンまでの経路（末尾ピンを除く）
+          const extendedRoute = [...newRoute, ...fromEndToClick.slice(1)];
+
+          return extendedRoute;
+        }
+
+        // クリックされたピンが既に末尾の場合は何もしない
+        return newRoute;
+      });
+
+      showToast(`末尾からピン${index + 1}までのルートを追加しました`, "success");
+    },
+    [isEditMode, isCreationMode]
+  );
+
   // ドラッグ状態管理のコールバック
   const handleDragStart = React.useCallback(() => {
     console.log("App handleDragStart called");
@@ -927,6 +961,7 @@ const AppContent: React.FC = () => {
 
       // オーバーレイのルート一覧を更新
       setSavedRoutes((prevRoutes) => prevRoutes.filter((route) => route.id !== routeId));
+      setAllRoutes((prevRoutes) => prevRoutes.filter((route) => route.id !== routeId));
 
       showToast("ルートが削除されました。", "success");
     } catch (error) {
@@ -1197,6 +1232,7 @@ const AppContent: React.FC = () => {
                   isEditMode={isEditMode}
                   onPointDrag={handlePointDrag}
                   onPointDelete={handlePointDelete}
+                  onPointClick={editingMode === "roundTrip" ? handleAddRoundTrip : undefined}
                   onRouteLineClick={handleRouteLineClick}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
@@ -1206,6 +1242,7 @@ const AppContent: React.FC = () => {
                   onRouteSelect={handleSelectRoute}
                   currentLocationMarker={currentLocationMarker}
                   onCurrentLocationFadeComplete={handleCurrentLocationFadeComplete}
+                  onPointDoubleClick={handleAddRoundTrip}
                 />
                 {/* 現在位置ボタン */}
                 <CurrentLocationButton
@@ -1346,6 +1383,8 @@ const AppContent: React.FC = () => {
                         setEditingMode("addOnRoute");
                       } else if (editingMode === "addOnRoute") {
                         setEditingMode("delete");
+                      } else if (editingMode === "delete") {
+                        setEditingMode("roundTrip");
                       } else {
                         setEditingMode("add");
                       }
@@ -1422,6 +1461,26 @@ const AppContent: React.FC = () => {
                       }}
                     >
                       <RemoveCircleOutline sx={{ fontSize: "3rem" }} />
+                    </IconButton>
+                  </Tooltip>
+                )}
+
+                {editingMode === "roundTrip" && (
+                  <Tooltip title="ピンをクリックして往復ルート追加">
+                    <IconButton
+                      onClick={handleCrosshairAction}
+                      sx={{
+                        backgroundColor: "rgba(156, 39, 176, 0.9)",
+                        color: "white",
+                        width: 80,
+                        height: 80,
+                        boxShadow: "none",
+                        "&:hover": {
+                          backgroundColor: "rgba(156, 39, 176, 1)",
+                        },
+                      }}
+                    >
+                      <Polyline sx={{ fontSize: "3rem" }} />
                     </IconButton>
                   </Tooltip>
                 )}

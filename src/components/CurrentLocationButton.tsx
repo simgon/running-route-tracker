@@ -37,7 +37,10 @@ const CurrentLocationButton: React.FC<CurrentLocationButtonProps> = ({
 
     setIsLoading(true);
     try {
-      (DeviceOrientationEvent as any).requestPermission();
+      // iOS 13+ でのみPermission要求
+      if (typeof (DeviceOrientationEvent as any).requestPermission === "function") {
+        (DeviceOrientationEvent as any).requestPermission();
+      }
       await onLocationClick();
     } finally {
       setIsLoading(false);
