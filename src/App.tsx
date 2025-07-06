@@ -2,7 +2,17 @@ import React, { useEffect, useState, useRef } from "react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { Box, IconButton, Tooltip } from "@mui/material";
-import { DirectionsRun, Person, SaveAlt, Cancel, Backspace, AddCircleOutline, Polyline, RemoveCircleOutline, ChangeCircle } from "@mui/icons-material";
+import {
+  DirectionsRun,
+  Person,
+  SaveAlt,
+  Cancel,
+  Backspace,
+  AddCircleOutline,
+  Polyline,
+  RemoveCircleOutline,
+  ChangeCircle,
+} from "@mui/icons-material";
 import GoogleMap from "./components/GoogleMap";
 import SaveRouteModal from "./components/SaveRouteModal";
 import EditRouteModal from "./components/EditRouteModal";
@@ -68,7 +78,7 @@ const AppContent: React.FC = () => {
   } | null>(null);
   const [isRouteOverlayExpanded, setIsRouteOverlayExpanded] = useState(false);
   const [routeOverlayHeight, setRouteOverlayHeight] = useState(500);
-  const [editingMode, setEditingMode] = useState<'add' | 'addOnRoute' | 'delete'>('add');
+  const [editingMode, setEditingMode] = useState<"add" | "addOnRoute" | "delete">("add");
   const mapRef = useRef<google.maps.Map | null>(null);
 
   // デフォルトの位置（東京駅）
@@ -283,14 +293,14 @@ const AppContent: React.FC = () => {
   // 十字マーク位置（マップ中心）でのピン操作
   const handleCrosshairAction = () => {
     if (!mapRef.current) return;
-    
+
     const center = mapRef.current.getCenter();
     if (!center) return;
-    
+
     const lat = center.lat();
     const lng = center.lng();
-    
-    if (editingMode === 'add') {
+
+    if (editingMode === "add") {
       // ピン追加
       const newPoint: RoutePoint = {
         lat,
@@ -299,7 +309,7 @@ const AppContent: React.FC = () => {
         timestamp: Date.now(),
       };
       setEditableRoute((prevRoute) => [...prevRoute, newPoint]);
-    } else if (editingMode === 'delete') {
+    } else if (editingMode === "delete") {
       // 最も近いピンを削除
       if (editableRoute.length > 0) {
         const targetIndex = findClosestPinIndex(lat, lng);
@@ -307,7 +317,7 @@ const AppContent: React.FC = () => {
           setEditableRoute((prev) => prev.filter((_, index) => index !== targetIndex));
         }
       }
-    } else if (editingMode === 'addOnRoute') {
+    } else if (editingMode === "addOnRoute") {
       // ルート上の最適な位置にピンを挿入
       if (editableRoute.length >= 2) {
         const insertIndex = findBestInsertIndex(lat, lng);
@@ -339,31 +349,29 @@ const AppContent: React.FC = () => {
   const findClosestPinIndex = (lat: number, lng: number): number => {
     let closestIndex = -1;
     let minDistance = Infinity;
-    
+
     editableRoute.forEach((point, index) => {
-      const distance = Math.sqrt(
-        Math.pow(point.lat - lat, 2) + Math.pow(point.lng - lng, 2)
-      );
+      const distance = Math.sqrt(Math.pow(point.lat - lat, 2) + Math.pow(point.lng - lng, 2));
       if (distance < minDistance) {
         minDistance = distance;
         closestIndex = index;
       }
     });
-    
+
     return closestIndex;
   };
 
   // ルート上の最適な挿入位置を取得
   const findBestInsertIndex = (lat: number, lng: number): number => {
     if (editableRoute.length < 2) return editableRoute.length;
-    
+
     let bestIndex = editableRoute.length;
     let minDistance = Infinity;
-    
+
     for (let i = 0; i < editableRoute.length - 1; i++) {
       const point1 = editableRoute[i];
       const point2 = editableRoute[i + 1];
-      
+
       // 線分への距離を計算（簡易版）
       const distance = distanceToLineSegment(lat, lng, point1, point2);
       if (distance < minDistance) {
@@ -371,27 +379,27 @@ const AppContent: React.FC = () => {
         bestIndex = i + 1;
       }
     }
-    
+
     return bestIndex;
   };
 
   // 点から線分への距離を計算
   const distanceToLineSegment = (
-    pointLat: number, 
-    pointLng: number, 
-    line1: RoutePoint, 
+    pointLat: number,
+    pointLng: number,
+    line1: RoutePoint,
     line2: RoutePoint
   ): number => {
     const A = pointLat - line1.lat;
     const B = pointLng - line1.lng;
     const C = line2.lat - line1.lat;
     const D = line2.lng - line1.lng;
-    
+
     const dot = A * C + B * D;
     const lenSq = C * C + D * D;
     let param = -1;
     if (lenSq !== 0) param = dot / lenSq;
-    
+
     let xx, yy;
     if (param < 0) {
       xx = line1.lat;
@@ -403,7 +411,7 @@ const AppContent: React.FC = () => {
       xx = line1.lat + param * C;
       yy = line1.lng + param * D;
     }
-    
+
     const dx = pointLat - xx;
     const dy = pointLng - yy;
     return Math.sqrt(dx * dx + dy * dy);
@@ -1189,7 +1197,12 @@ const AppContent: React.FC = () => {
               <Box
                 sx={{
                   position: "absolute",
-                  bottom: (isCreationMode || isEditMode) ? 40 : (isRouteOverlayExpanded ? routeOverlayHeight + 40 : 220),
+                  bottom:
+                    isCreationMode || isEditMode
+                      ? 40
+                      : isRouteOverlayExpanded
+                      ? routeOverlayHeight + 40
+                      : 220,
                   left: "50%",
                   transform: "translateX(-50%)",
                   zIndex: 1001,
@@ -1233,22 +1246,22 @@ const AppContent: React.FC = () => {
                 <Tooltip title="編集モード切り替え">
                   <IconButton
                     onClick={() => {
-                      if (editingMode === 'add') {
-                        setEditingMode('addOnRoute');
-                      } else if (editingMode === 'addOnRoute') {
-                        setEditingMode('delete');
+                      if (editingMode === "add") {
+                        setEditingMode("addOnRoute");
+                      } else if (editingMode === "addOnRoute") {
+                        setEditingMode("delete");
                       } else {
-                        setEditingMode('add');
+                        setEditingMode("add");
                       }
                     }}
                     sx={{
-                      backgroundColor: "rgba(76, 175, 80, 0.8)",
+                      backgroundColor: "rgba(33, 150, 243, 0.8)",
                       color: "white",
                       width: 56,
                       height: 56,
                       boxShadow: "none",
                       "&:hover": {
-                        backgroundColor: "rgba(76, 175, 80, 1)",
+                        backgroundColor: "rgba(33, 150, 243, 1)",
                       },
                     }}
                   >
@@ -1257,18 +1270,18 @@ const AppContent: React.FC = () => {
                 </Tooltip>
 
                 {/* 3. 現在のモードに応じたアクションボタン（最大サイズ） */}
-                {editingMode === 'add' && (
+                {editingMode === "add" && (
                   <Tooltip title="ピンを追加">
                     <IconButton
                       onClick={handleCrosshairAction}
                       sx={{
-                        backgroundColor: "rgba(76, 175, 80, 0.9)",
+                        backgroundColor: "rgba(33, 150, 243, 0.9)",
                         color: "white",
                         width: 70,
                         height: 70,
                         boxShadow: "none",
                         "&:hover": {
-                          backgroundColor: "rgba(76, 175, 80, 1)",
+                          backgroundColor: "rgba(33, 150, 243, 1)",
                         },
                       }}
                     >
@@ -1277,18 +1290,18 @@ const AppContent: React.FC = () => {
                   </Tooltip>
                 )}
 
-                {editingMode === 'addOnRoute' && (
+                {editingMode === "addOnRoute" && (
                   <Tooltip title="ルート上に追加">
                     <IconButton
                       onClick={handleCrosshairAction}
                       sx={{
-                        backgroundColor: "rgba(76, 175, 80, 0.9)",
+                        backgroundColor: "rgba(156, 39, 176, 0.9)",
                         color: "white",
                         width: 70,
                         height: 70,
                         boxShadow: "none",
                         "&:hover": {
-                          backgroundColor: "rgba(76, 175, 80, 1)",
+                          backgroundColor: "rgba(156, 39, 176, 1)",
                         },
                       }}
                     >
@@ -1297,18 +1310,18 @@ const AppContent: React.FC = () => {
                   </Tooltip>
                 )}
 
-                {editingMode === 'delete' && (
+                {editingMode === "delete" && (
                   <Tooltip title="ピンを削除">
                     <IconButton
                       onClick={handleCrosshairAction}
                       sx={{
-                        backgroundColor: "rgba(76, 175, 80, 0.9)",
+                        backgroundColor: "rgba(244, 67, 54, 0.9)",
                         color: "white",
                         width: 70,
                         height: 70,
                         boxShadow: "none",
                         "&:hover": {
-                          backgroundColor: "rgba(76, 175, 80, 1)",
+                          backgroundColor: "rgba(244, 67, 54, 1)",
                         },
                       }}
                     >
@@ -1318,20 +1331,28 @@ const AppContent: React.FC = () => {
                 )}
 
                 {/* 4. 末尾削除ボタン */}
-                <Tooltip title={editableRoute.length === 0 ? "削除するピンがありません" : "末尾ピン削除"}>
+                <Tooltip
+                  title={editableRoute.length === 0 ? "削除するピンがありません" : "末尾ピン削除"}
+                >
                   <IconButton
                     onClick={editableRoute.length === 0 ? undefined : handleRemoveLastPin}
                     sx={{
-                      backgroundColor: editableRoute.length === 0 ? "rgba(76, 175, 80, 0.4)" : "rgba(76, 175, 80, 0.8)",
+                      backgroundColor:
+                        editableRoute.length === 0
+                          ? "rgba(255, 152, 0, 0.4)"
+                          : "rgba(255, 152, 0, 0.8)",
                       color: "white",
                       opacity: editableRoute.length === 0 ? 0.6 : 1,
                       cursor: editableRoute.length === 0 ? "not-allowed" : "pointer",
                       boxShadow: "none",
                       "&:hover": {
-                        backgroundColor: editableRoute.length === 0 ? "rgba(76, 175, 80, 0.4)" : "rgba(76, 175, 80, 1)",
+                        backgroundColor:
+                          editableRoute.length === 0
+                            ? "rgba(255, 152, 0, 0.4)"
+                            : "rgba(255, 152, 0, 1)",
                       },
-                      width: 60,
-                      height: 60,
+                      width: 56,
+                      height: 56,
                     }}
                   >
                     <Backspace fontSize="large" />
@@ -1351,13 +1372,13 @@ const AppContent: React.FC = () => {
                       }
                     }}
                     sx={{
-                      backgroundColor: "rgba(76, 175, 80, 0.8)",
+                      backgroundColor: "rgba(244, 67, 54, 0.8)",
                       color: "white",
                       width: 56,
                       height: 56,
                       boxShadow: "none",
                       "&:hover": {
-                        backgroundColor: "rgba(76, 175, 80, 1)",
+                        backgroundColor: "rgba(244, 67, 54, 1)",
                       },
                     }}
                   >
@@ -1370,25 +1391,25 @@ const AppContent: React.FC = () => {
             {/* ルートオーバーレイ（編集・作成時は非表示） */}
             {!isCreationMode && !isEditMode && (
               <RouteOverlay
-              routes={savedRoutes}
-              selectedRouteId={selectedRouteId}
-              onSelectRoute={handleSelectRoute}
-              onEditRoute={handleOpenEditModal}
-              onDeleteRoute={handleRouteDelete}
-              onToggleAllRoutes={toggleAllRoutesVisibility}
-              onStartManualCreation={handleStartManualCreation}
-              onStartAIGeneration={() => setShowAIOptimizer(true)}
-              onStartRouteCopy={handleRouteCopy}
-              onReorderRoutes={handleReorderRoutes}
-              visibleRoutes={visibleRoutes}
-              onToggleRouteVisibility={toggleRouteVisibility}
-              isExpanded={isRouteOverlayExpanded}
-              onToggleExpanded={handleToggleRouteOverlayExpanded}
-              overlayHeight={routeOverlayHeight}
-              onHeightChange={handleRouteOverlayHeightChange}
-              isCreationMode={isCreationMode}
-              isEditMode={isEditMode}
-            />
+                routes={savedRoutes}
+                selectedRouteId={selectedRouteId}
+                onSelectRoute={handleSelectRoute}
+                onEditRoute={handleOpenEditModal}
+                onDeleteRoute={handleRouteDelete}
+                onToggleAllRoutes={toggleAllRoutesVisibility}
+                onStartManualCreation={handleStartManualCreation}
+                onStartAIGeneration={() => setShowAIOptimizer(true)}
+                onStartRouteCopy={handleRouteCopy}
+                onReorderRoutes={handleReorderRoutes}
+                visibleRoutes={visibleRoutes}
+                onToggleRouteVisibility={toggleRouteVisibility}
+                isExpanded={isRouteOverlayExpanded}
+                onToggleExpanded={handleToggleRouteOverlayExpanded}
+                overlayHeight={routeOverlayHeight}
+                onHeightChange={handleRouteOverlayHeightChange}
+                isCreationMode={isCreationMode}
+                isEditMode={isEditMode}
+              />
             )}
           </div>
         </div>
