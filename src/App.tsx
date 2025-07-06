@@ -135,13 +135,13 @@ const AppContent: React.FC = () => {
         console.log("低精度位置取得成功");
       }
 
-      const { latitude, longitude, heading, accuracy } = position.coords;
+      const { latitude, longitude, accuracy } = position.coords;
       const currentPos = { lat: latitude, lng: longitude };
 
       console.log("取得した位置情報:", {
         latitude,
         longitude,
-        heading: heading || "null",
+        heading: "GPSからは取得不可",
         accuracy: accuracy ? `${Math.round(accuracy)}m` : "不明",
         timestamp: new Date(position.timestamp).toLocaleString(),
       });
@@ -152,8 +152,8 @@ const AppContent: React.FC = () => {
         mapRef.current.setZoom(18);
       }
 
-      // デバイスの方向を取得（利用可能な場合）
-      let deviceHeading = heading || 0;
+      // デバイスの方向を取得（DeviceOrientationEventから）
+      let deviceHeading = 0;
 
       // コンパス方向を取得（モバイルデバイスの場合）
       if (typeof DeviceOrientationEvent !== "undefined") {
