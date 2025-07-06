@@ -144,9 +144,9 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
   const handleResizeStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     setIsResizing(true);
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
     setResizeStartY(clientY);
     setResizeStartHeight(overlayHeight);
   };
@@ -155,10 +155,13 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
     (e: MouseEvent | TouchEvent) => {
       if (!isResizing || !onHeightChange) return;
 
-      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
       const deltaY = resizeStartY - clientY; // 上方向に移動で高さ増加
-      const newHeight = Math.max(120, Math.min(window.innerHeight * 0.8, resizeStartHeight + deltaY));
-      
+      const newHeight = Math.max(
+        120,
+        Math.min(window.innerHeight * 0.8, resizeStartHeight + deltaY)
+      );
+
       onHeightChange(newHeight);
     },
     [isResizing, resizeStartY, resizeStartHeight, onHeightChange]
@@ -171,16 +174,16 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
   // グローバルマウス/タッチイベントの管理
   React.useEffect(() => {
     if (isResizing) {
-      document.addEventListener('mousemove', handleResizeMove);
-      document.addEventListener('mouseup', handleResizeEnd);
-      document.addEventListener('touchmove', handleResizeMove, { passive: false });
-      document.addEventListener('touchend', handleResizeEnd);
-      
+      document.addEventListener("mousemove", handleResizeMove);
+      document.addEventListener("mouseup", handleResizeEnd);
+      document.addEventListener("touchmove", handleResizeMove, { passive: false });
+      document.addEventListener("touchend", handleResizeEnd);
+
       return () => {
-        document.removeEventListener('mousemove', handleResizeMove);
-        document.removeEventListener('mouseup', handleResizeEnd);
-        document.removeEventListener('touchmove', handleResizeMove);
-        document.removeEventListener('touchend', handleResizeEnd);
+        document.removeEventListener("mousemove", handleResizeMove);
+        document.removeEventListener("mouseup", handleResizeEnd);
+        document.removeEventListener("touchmove", handleResizeMove);
+        document.removeEventListener("touchend", handleResizeEnd);
       };
     }
   }, [isResizing, handleResizeMove, handleResizeEnd]);
@@ -264,12 +267,12 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
           }}
           draggable={false}
         >
-          <ResizeIcon 
-            sx={{ 
-              fontSize: "12px", 
+          <ResizeIcon
+            sx={{
+              fontSize: "12px",
               color: "white",
-              transform: "rotate(90deg)"
-            }} 
+              transform: "rotate(90deg)",
+            }}
           />
         </Box>
       )}

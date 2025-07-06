@@ -66,7 +66,7 @@ const AppContent: React.FC = () => {
     heading: number;
   } | null>(null);
   const [isRouteOverlayExpanded, setIsRouteOverlayExpanded] = useState(false);
-  const [routeOverlayHeight, setRouteOverlayHeight] = useState(180);
+  const [routeOverlayHeight, setRouteOverlayHeight] = useState(500);
   const mapRef = useRef<google.maps.Map | null>(null);
 
   // デフォルトの位置（東京駅）
@@ -128,7 +128,7 @@ const AppContent: React.FC = () => {
         console.log("高精度位置取得成功");
       } catch (highAccuracyError) {
         console.log("高精度位置取得に失敗、低精度で再試行:", highAccuracyError);
-        
+
         // 低精度で再試行
         position = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -159,16 +159,16 @@ const AppContent: React.FC = () => {
 
       // デバイスの方向を取得（利用可能な場合）
       let deviceHeading = heading || 0;
-      
+
       // コンパス方向を取得（モバイルデバイスの場合）
-      if (typeof DeviceOrientationEvent !== 'undefined') {
+      if (typeof DeviceOrientationEvent !== "undefined") {
         try {
           // iOS 13+ でのPermission要求（存在する場合のみ）
           const DeviceOrientationEventAny = DeviceOrientationEvent as any;
           if (DeviceOrientationEventAny.requestPermission) {
             const permission = await DeviceOrientationEventAny.requestPermission();
-            if (permission !== 'granted') {
-              throw new Error('Permission denied');
+            if (permission !== "granted") {
+              throw new Error("Permission denied");
             }
           }
 
@@ -182,14 +182,14 @@ const AppContent: React.FC = () => {
                 absolute: event.absolute,
               });
               const alpha = event.alpha; // コンパス方向
-              window.removeEventListener('deviceorientation', handleOrientation);
+              window.removeEventListener("deviceorientation", handleOrientation);
               resolve(alpha || 0);
             };
-            window.addEventListener('deviceorientation', handleOrientation);
+            window.addEventListener("deviceorientation", handleOrientation);
             // 3秒後にタイムアウト
             setTimeout(() => {
               console.log("DeviceOrientation タイムアウト");
-              window.removeEventListener('deviceorientation', handleOrientation);
+              window.removeEventListener("deviceorientation", handleOrientation);
               resolve(deviceHeading);
             }, 3000);
           });
@@ -322,7 +322,7 @@ const AppContent: React.FC = () => {
 
       const distance = isCreationMode ? calculateTotalDistance(editableRoute) : 0;
       // customDurationが渡された場合は手動入力された時間を使用、それ以外は0
-      const duration = customDuration !== undefined ? customDuration : (isCreationMode ? 0 : 0);
+      const duration = customDuration !== undefined ? customDuration : isCreationMode ? 0 : 0;
 
       await saveRoute(name, description, routeToSave, distance, duration);
 
@@ -451,14 +451,14 @@ const AppContent: React.FC = () => {
       // 新しい順序でルートを更新
       setSavedRoutes(newRoutes);
       setAllRoutes(newRoutes);
-      
+
       // DBに並び替え順序を保存
-      const routeIds = newRoutes.map(route => route.id);
+      const routeIds = newRoutes.map((route) => route.id);
       await updateRoutesOrder(routeIds);
     } catch (error) {
       console.error("ルート並び替えエラー:", error);
       showToast("ルートの並び替えに失敗しました", "error");
-      
+
       // エラー時は元の順序に戻す
       try {
         const routes = await loadUserRoutes();
@@ -519,11 +519,14 @@ const AppContent: React.FC = () => {
   };
 
   // ルート編集処理（モーダル表示）
-  const handleEditRoute = async (routeId: string, updates: { name?: string; description?: string; duration?: number }) => {
+  const handleEditRoute = async (
+    routeId: string,
+    updates: { name?: string; description?: string; duration?: number }
+  ) => {
     try {
       // updateRunningRouteを直接インポートして使用
-      const { updateRunningRoute } = await import('./lib/supabase');
-      
+      const { updateRunningRoute } = await import("./lib/supabase");
+
       // 更新データを準備
       const updateData: any = {};
       if (updates.name !== undefined) updateData.name = updates.name;
@@ -537,14 +540,13 @@ const AppContent: React.FC = () => {
       const updatedRoutes = await loadUserRoutes();
       setSavedRoutes(updatedRoutes);
 
-      showToast('ルートが正常に更新されました！', 'success');
+      showToast("ルートが正常に更新されました！", "success");
     } catch (error) {
-      console.error('ルート更新エラー:', error);
-      showToast('ルートの更新に失敗しました。もう一度お試しください。', 'error');
+      console.error("ルート更新エラー:", error);
+      showToast("ルートの更新に失敗しました。もう一度お試しください。", "error");
       throw error;
     }
   };
-
 
   // EditRouteModalを開く
   const handleOpenEditModal = (route: RunningRoute) => {
