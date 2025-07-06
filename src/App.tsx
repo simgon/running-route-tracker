@@ -1151,25 +1151,25 @@ const AppContent: React.FC = () => {
               >
                 <Box
                   sx={{
-                    width: 40,
-                    height: 40,
+                    width: 30,
+                    height: 30,
                     position: "relative",
                     "&::before, &::after": {
                       content: '""',
                       position: "absolute",
-                      backgroundColor: "rgba(255, 0, 0, 0.8)",
+                      backgroundColor: "rgba(76, 175, 80, 0.8)",
                       borderRadius: "2px",
                       boxShadow: "0 0 8px rgba(0, 0, 0, 0.5)",
                     },
                     "&::before": {
                       width: "3px",
-                      height: "40px",
+                      height: "30px",
                       left: "50%",
                       top: 0,
                       transform: "translateX(-50%)",
                     },
                     "&::after": {
-                      width: "40px",
+                      width: "30px",
                       height: "3px",
                       top: "50%",
                       left: 0,
@@ -1181,9 +1181,9 @@ const AppContent: React.FC = () => {
                 <Box
                   sx={{
                     position: "absolute",
-                    width: 8,
-                    height: 8,
-                    backgroundColor: "rgba(255, 0, 0, 0.9)",
+                    width: 6,
+                    height: 6,
+                    backgroundColor: "rgba(76, 175, 80, 0.9)",
                     borderRadius: "50%",
                     border: "2px solid white",
                     boxShadow: "0 0 6px rgba(0, 0, 0, 0.5)",
@@ -1208,13 +1208,15 @@ const AppContent: React.FC = () => {
                   zIndex: 1001,
                   backgroundColor: "rgba(255, 255, 255, 0.4)",
                   borderRadius: 4,
-                  p: 3,
+                  pb: 1,
+                  px: 1.5,
                   boxShadow: 4,
                   backdropFilter: "blur(12px)",
                   display: "flex",
-                  gap: 4,
+                  gap: 1.8,
                   alignItems: "flex-end",
-                  minHeight: 80,
+                  height: 70,
+                  overflow: "visible",
                 }}
               >
                 {/* 1. 保存ボタン */}
@@ -1228,13 +1230,13 @@ const AppContent: React.FC = () => {
                       }
                     }}
                     sx={{
-                      backgroundColor: "rgba(76, 175, 80, 0.8)",
+                      backgroundColor: "rgba(33, 150, 243, 0.8)",
                       color: "white",
                       width: 56,
                       height: 56,
                       boxShadow: "none",
                       "&:hover": {
-                        backgroundColor: "rgba(76, 175, 80, 1)",
+                        backgroundColor: "rgba(33, 150, 243, 1)",
                       },
                     }}
                   >
@@ -1255,13 +1257,13 @@ const AppContent: React.FC = () => {
                       }
                     }}
                     sx={{
-                      backgroundColor: "rgba(33, 150, 243, 0.8)",
+                      backgroundColor: "rgba(76, 175, 80, 0.8)",
                       color: "white",
                       width: 56,
                       height: 56,
                       boxShadow: "none",
                       "&:hover": {
-                        backgroundColor: "rgba(33, 150, 243, 1)",
+                        backgroundColor: "rgba(76, 175, 80, 1)",
                       },
                     }}
                   >
@@ -1275,17 +1277,17 @@ const AppContent: React.FC = () => {
                     <IconButton
                       onClick={handleCrosshairAction}
                       sx={{
-                        backgroundColor: "rgba(33, 150, 243, 0.9)",
+                        backgroundColor: "rgba(76, 175, 80, 0.9)",
                         color: "white",
-                        width: 70,
-                        height: 70,
+                        width: 80,
+                        height: 80,
                         boxShadow: "none",
                         "&:hover": {
-                          backgroundColor: "rgba(33, 150, 243, 1)",
+                          backgroundColor: "rgba(76, 175, 80, 1)",
                         },
                       }}
                     >
-                      <AddCircleOutline fontSize="large" />
+                      <AddCircleOutline sx={{ fontSize: "3rem" }} />
                     </IconButton>
                   </Tooltip>
                 )}
@@ -1295,17 +1297,17 @@ const AppContent: React.FC = () => {
                     <IconButton
                       onClick={handleCrosshairAction}
                       sx={{
-                        backgroundColor: "rgba(156, 39, 176, 0.9)",
+                        backgroundColor: "rgba(76, 175, 80, 0.9)",
                         color: "white",
-                        width: 70,
-                        height: 70,
+                        width: 80,
+                        height: 80,
                         boxShadow: "none",
                         "&:hover": {
-                          backgroundColor: "rgba(156, 39, 176, 1)",
+                          backgroundColor: "rgba(76, 175, 80, 1)",
                         },
                       }}
                     >
-                      <Polyline fontSize="large" />
+                      <Polyline sx={{ fontSize: "3rem" }} />
                     </IconButton>
                   </Tooltip>
                 )}
@@ -1315,17 +1317,17 @@ const AppContent: React.FC = () => {
                     <IconButton
                       onClick={handleCrosshairAction}
                       sx={{
-                        backgroundColor: "rgba(244, 67, 54, 0.9)",
+                        backgroundColor: "rgba(76, 175, 80, 0.9)",
                         color: "white",
-                        width: 70,
-                        height: 70,
+                        width: 80,
+                        height: 80,
                         boxShadow: "none",
                         "&:hover": {
-                          backgroundColor: "rgba(244, 67, 54, 1)",
+                          backgroundColor: "rgba(76, 175, 80, 1)",
                         },
                       }}
                     >
-                      <RemoveCircleOutline fontSize="large" />
+                      <RemoveCircleOutline sx={{ fontSize: "3rem" }} />
                     </IconButton>
                   </Tooltip>
                 )}
