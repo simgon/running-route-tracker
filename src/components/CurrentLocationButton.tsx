@@ -35,6 +35,9 @@ const CurrentLocationButton: React.FC<CurrentLocationButtonProps> = ({
   const handleClick = async () => {
     if (disabled) return;
 
+    const DeviceOrientationEventAny = DeviceOrientationEvent as any;
+    DeviceOrientationEventAny.requestPermission();
+
     setIsLoading(true);
     try {
       await onLocationClick();
