@@ -280,6 +280,135 @@ const AppContent: React.FC = () => {
     }
   };
 
+  // 十字マーク位置（マップ中心）でのピン操作
+  const handleCrosshairAction = () => {
+    if (!mapRef.current) return;
+    
+    const center = mapRef.current.getCenter();
+    if (!center) return;
+    
+    const lat = center.lat();
+    const lng = center.lng();
+    
+    if (editingMode === 'add') {
+      // ピン追加
+      const newPoint: RoutePoint = {
+        lat,
+        lng,
+        accuracy: 5,
+        timestamp: Date.now(),
+      };
+      setEditableRoute((prevRoute) => [...prevRoute, newPoint]);
+    } else if (editingMode === 'delete') {
+      // 最も近いピンを削除
+      if (editableRoute.length > 0) {
+        const targetIndex = findClosestPinIndex(lat, lng);
+        if (targetIndex !== -1) {
+          setEditableRoute((prev) => prev.filter((_, index) => index !== targetIndex));
+        }
+      }
+    } else if (editingMode === 'addOnRoute') {
+      // ルート上の最適な位置にピンを挿入
+      if (editableRoute.length >= 2) {
+        const insertIndex = findBestInsertIndex(lat, lng);
+        const newPoint: RoutePoint = {
+          lat,
+          lng,
+          accuracy: 5,
+          timestamp: Date.now(),
+        };
+        setEditableRoute((prev) => {
+          const newRoute = [...prev];
+          newRoute.splice(insertIndex, 0, newPoint);
+          return newRoute;
+        });
+      } else {
+        // ルートが短い場合は末尾に追加
+        const newPoint: RoutePoint = {
+          lat,
+          lng,
+          accuracy: 5,
+          timestamp: Date.now(),
+        };
+        setEditableRoute((prevRoute) => [...prevRoute, newPoint]);
+      }
+    }
+  };
+
+  // 最も近いピンのインデックスを取得
+  const findClosestPinIndex = (lat: number, lng: number): number => {
+    let closestIndex = -1;
+    let minDistance = Infinity;
+    
+    editableRoute.forEach((point, index) => {
+      const distance = Math.sqrt(
+        Math.pow(point.lat - lat, 2) + Math.pow(point.lng - lng, 2)
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestIndex = index;
+      }
+    });
+    
+    return closestIndex;
+  };
+
+  // ルート上の最適な挿入位置を取得
+  const findBestInsertIndex = (lat: number, lng: number): number => {
+    if (editableRoute.length < 2) return editableRoute.length;
+    
+    let bestIndex = editableRoute.length;
+    let minDistance = Infinity;
+    
+    for (let i = 0; i < editableRoute.length - 1; i++) {
+      const point1 = editableRoute[i];
+      const point2 = editableRoute[i + 1];
+      
+      // 線分への距離を計算（簡易版）
+      const distance = distanceToLineSegment(lat, lng, point1, point2);
+      if (distance < minDistance) {
+        minDistance = distance;
+        bestIndex = i + 1;
+      }
+    }
+    
+    return bestIndex;
+  };
+
+  // 点から線分への距離を計算
+  const distanceToLineSegment = (
+    pointLat: number, 
+    pointLng: number, 
+    line1: RoutePoint, 
+    line2: RoutePoint
+  ): number => {
+    const A = pointLat - line1.lat;
+    const B = pointLng - line1.lng;
+    const C = line2.lat - line1.lat;
+    const D = line2.lng - line1.lng;
+    
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    let param = -1;
+    if (lenSq !== 0) param = dot / lenSq;
+    
+    let xx, yy;
+    if (param < 0) {
+      xx = line1.lat;
+      yy = line1.lng;
+    } else if (param > 1) {
+      xx = line2.lat;
+      yy = line2.lng;
+    } else {
+      xx = line1.lat + param * C;
+      yy = line1.lng + param * D;
+    }
+    
+    const dx = pointLat - xx;
+    const dy = pointLng - yy;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
   // 距離計算関数を外部に分離
   const calculateTotalDistance = (points: RoutePoint[]) => {
     let totalDistance = 0;
@@ -997,6 +1126,64 @@ const AppContent: React.FC = () => {
               </div>
             )}
 
+            {/* 地図中央の十字マーク（編集・作成時のみ表示） */}
+            {(isCreationMode || isEditMode) && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  zIndex: 1000,
+                  pointerEvents: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    position: "relative",
+                    "&::before, &::after": {
+                      content: '""',
+                      position: "absolute",
+                      backgroundColor: "rgba(255, 0, 0, 0.8)",
+                      borderRadius: "2px",
+                      boxShadow: "0 0 8px rgba(0, 0, 0, 0.5)",
+                    },
+                    "&::before": {
+                      width: "3px",
+                      height: "40px",
+                      left: "50%",
+                      top: 0,
+                      transform: "translateX(-50%)",
+                    },
+                    "&::after": {
+                      width: "40px",
+                      height: "3px",
+                      top: "50%",
+                      left: 0,
+                      transform: "translateY(-50%)",
+                    },
+                  }}
+                />
+                {/* 中央の小さな円 */}
+                <Box
+                  sx={{
+                    position: "absolute",
+                    width: 8,
+                    height: 8,
+                    backgroundColor: "rgba(255, 0, 0, 0.9)",
+                    borderRadius: "50%",
+                    border: "2px solid white",
+                    boxShadow: "0 0 6px rgba(0, 0, 0, 0.5)",
+                  }}
+                />
+              </Box>
+            )}
+
             {/* 編集・作成時のアクションボタン領域 */}
             {(isCreationMode || isEditMode) && (
               <Box
@@ -1088,6 +1275,7 @@ const AppContent: React.FC = () => {
                 {editingMode === 'add' && (
                   <Tooltip title="ピンを追加">
                     <IconButton
+                      onClick={handleCrosshairAction}
                       sx={{
                         backgroundColor: "primary.main",
                         color: "white",
@@ -1106,6 +1294,7 @@ const AppContent: React.FC = () => {
                 {editingMode === 'addOnRoute' && (
                   <Tooltip title="ルート上に追加">
                     <IconButton
+                      onClick={handleCrosshairAction}
                       sx={{
                         backgroundColor: "secondary.main",
                         color: "white",
@@ -1124,6 +1313,7 @@ const AppContent: React.FC = () => {
                 {editingMode === 'delete' && (
                   <Tooltip title="ピンを削除">
                     <IconButton
+                      onClick={handleCrosshairAction}
                       sx={{
                         backgroundColor: "warning.main",
                         color: "white",
