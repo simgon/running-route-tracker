@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { Box, IconButton, Tooltip } from "@mui/material";
-import { DirectionsRun, Person, SaveAlt, Cancel, Backspace } from "@mui/icons-material";
+import { DirectionsRun, Person, SaveAlt, Cancel, Backspace, AddCircleOutline, Polyline, RemoveCircleOutline, ChangeCircle } from "@mui/icons-material";
 import GoogleMap from "./components/GoogleMap";
 import SaveRouteModal from "./components/SaveRouteModal";
 import EditRouteModal from "./components/EditRouteModal";
@@ -68,6 +68,7 @@ const AppContent: React.FC = () => {
   } | null>(null);
   const [isRouteOverlayExpanded, setIsRouteOverlayExpanded] = useState(false);
   const [routeOverlayHeight, setRouteOverlayHeight] = useState(500);
+  const [editingMode, setEditingMode] = useState<'add' | 'addOnRoute' | 'delete'>('add');
   const mapRef = useRef<google.maps.Map | null>(null);
 
   // デフォルトの位置（東京駅）
@@ -1056,6 +1057,87 @@ const AppContent: React.FC = () => {
                     <Backspace fontSize="large" />
                   </IconButton>
                 </Tooltip>
+
+                {/* モード切り替えボタン */}
+                <Tooltip title="編集モード切り替え">
+                  <IconButton
+                    onClick={() => {
+                      if (editingMode === 'add') {
+                        setEditingMode('addOnRoute');
+                      } else if (editingMode === 'addOnRoute') {
+                        setEditingMode('delete');
+                      } else {
+                        setEditingMode('add');
+                      }
+                    }}
+                    sx={{
+                      backgroundColor: "info.main",
+                      color: "white",
+                      width: 48,
+                      height: 48,
+                      "&:hover": {
+                        backgroundColor: "info.dark",
+                      },
+                    }}
+                  >
+                    <ChangeCircle fontSize="medium" />
+                  </IconButton>
+                </Tooltip>
+
+                {/* 現在のモードに応じたアクションボタン */}
+                {editingMode === 'add' && (
+                  <Tooltip title="ピンを追加">
+                    <IconButton
+                      sx={{
+                        backgroundColor: "primary.main",
+                        color: "white",
+                        width: 48,
+                        height: 48,
+                        "&:hover": {
+                          backgroundColor: "primary.dark",
+                        },
+                      }}
+                    >
+                      <AddCircleOutline fontSize="medium" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+
+                {editingMode === 'addOnRoute' && (
+                  <Tooltip title="ルート上に追加">
+                    <IconButton
+                      sx={{
+                        backgroundColor: "secondary.main",
+                        color: "white",
+                        width: 48,
+                        height: 48,
+                        "&:hover": {
+                          backgroundColor: "secondary.dark",
+                        },
+                      }}
+                    >
+                      <Polyline fontSize="medium" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+
+                {editingMode === 'delete' && (
+                  <Tooltip title="ピンを削除">
+                    <IconButton
+                      sx={{
+                        backgroundColor: "warning.main",
+                        color: "white",
+                        width: 48,
+                        height: 48,
+                        "&:hover": {
+                          backgroundColor: "warning.dark",
+                        },
+                      }}
+                    >
+                      <RemoveCircleOutline fontSize="medium" />
+                    </IconButton>
+                  </Tooltip>
+                )}
 
                 <Tooltip title="キャンセル">
                   <IconButton
