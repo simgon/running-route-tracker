@@ -334,7 +334,7 @@ const AppContent: React.FC = () => {
   };
 
   // ルート選択処理（onSelectRoute）
-  const handleSelectRoute = (route: RunningRoute) => {
+  const handleSelectRoute = React.useCallback((route: RunningRoute) => {
     // GeoJSON LineStringをRoutePointに変換
     const routePoints: RoutePoint[] = route.route_data.coordinates.map((coord, index) => ({
       lat: coord[1],
@@ -368,7 +368,7 @@ const AppContent: React.FC = () => {
 
     // マップビューをルートに合わせて移動
     fitMapToRoute(routePoints);
-  };
+  }, [selectedRouteId, isEditMode, loadedRoute]);
 
   // ルートの表示/非表示を切り替える
   const toggleRouteVisibility = (routeId: string) => {
@@ -430,6 +430,53 @@ const AppContent: React.FC = () => {
 
     loadInitialRoutes();
   }, []);
+
+  // キーボードナビゲーション（左右矢印キーでルート選択）
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 編集・作成モード時はキーボードナビゲーションを無効化
+      if (isEditMode || isCreationMode || savedRoutes.length === 0) {
+        return;
+      }
+
+      // 入力フィールドやモーダルにフォーカスがある場合は無効化
+      const activeElement = document.activeElement;
+      if (activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.getAttribute('contenteditable') === 'true'
+      )) {
+        return;
+      }
+
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        
+        const currentIndex = selectedRouteId 
+          ? savedRoutes.findIndex(route => route.id === selectedRouteId)
+          : -1;
+        
+        let nextIndex;
+        if (e.key === 'ArrowLeft') {
+          // 左矢印：前のルートへ
+          nextIndex = currentIndex <= 0 ? savedRoutes.length - 1 : currentIndex - 1;
+        } else {
+          // 右矢印：次のルートへ
+          nextIndex = currentIndex >= savedRoutes.length - 1 ? 0 : currentIndex + 1;
+        }
+        
+        const nextRoute = savedRoutes[nextIndex];
+        if (nextRoute) {
+          handleSelectRoute(nextRoute);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [savedRoutes, selectedRouteId, isEditMode, isCreationMode, handleSelectRoute]);
 
   // ルート並び替え処理
   const handleReorderRoutes = async (newRoutes: RunningRoute[]) => {
