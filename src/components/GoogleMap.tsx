@@ -13,7 +13,7 @@ interface GoogleMapProps {
   routePoints?: RoutePoint[];
   isRecording?: boolean;
   onMapClick?: (lat: number, lng: number) => void;
-  isDemoMode?: boolean;
+  isCreationMode?: boolean;
   isEditMode?: boolean;
   onPointDrag?: (index: number, lat: number, lng: number) => void;
   onPointDelete?: (index: number) => void;
@@ -40,7 +40,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   routePoints = [],
   isRecording = false,
   onMapClick,
-  isDemoMode = false,
+  isCreationMode = false,
   isEditMode = false,
   onPointDrag,
   onPointDelete,
@@ -63,9 +63,9 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   const allRoutesPolylinesRef = useRef<google.maps.Polyline[]>([]);
   const allRoutesMarkersRef = useRef<google.maps.Marker[]>([]);
   const allRoutesLabelsRef = useRef<google.maps.Marker[]>([]);
-  const prevModeRef = useRef<{ isEditMode: boolean; isDemoMode: boolean }>({
+  const prevModeRef = useRef<{ isEditMode: boolean; isCreationMode: boolean }>({
     isEditMode: false,
-    isDemoMode: false,
+    isCreationMode: false,
   });
   const isDraggingRef = useRef<boolean>(false);
   const dragStartPositionRef = useRef<{ x: number; y: number } | null>(null);
@@ -143,11 +143,11 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         }
       };
     }
-  }, [isEditMode, isDemoMode]);
+  }, [isEditMode, isCreationMode]);
 
   // 地図クリックイベントを別のuseEffectで管理
   useEffect(() => {
-    if (mapRef.current && (isDemoMode || isEditMode) && onMapClick) {
+    if (mapRef.current && (isCreationMode || isEditMode) && onMapClick) {
       const clickListener = mapRef.current.addListener(
         "click",
         (event: google.maps.MapMouseEvent) => {
@@ -189,7 +189,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         google.maps.event.removeListener(clickListener);
       };
     }
-  }, [isDemoMode, isEditMode, onMapClick]);
+  }, [isCreationMode, isEditMode, onMapClick]);
 
   // ユーザー位置でマップの中心を移動
   useEffect(() => {
@@ -198,13 +198,13 @@ const MapComponent: React.FC<GoogleMapProps> = ({
       userPosition &&
       !isRecording &&
       !isEditMode &&
-      !isDemoMode &&
+      !isCreationMode &&
       !selectedRouteId &&
       visibleRoutes.size === 0
     ) {
       mapRef.current.panTo(userPosition);
     }
-  }, [userPosition, isRecording, isEditMode, isDemoMode, selectedRouteId, visibleRoutes]);
+  }, [userPosition, isRecording, isEditMode, isCreationMode, selectedRouteId, visibleRoutes]);
 
   // ルート変更時の地図位置調整（編集モード・手動作成モード時は無効）
   useEffect(() => {
@@ -225,7 +225,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
       routePoints.length > 0 &&
       visibleRoutes.size === 0 &&
       !isEditMode &&
-      !isDemoMode
+      !isCreationMode
     ) {
       // ルートの境界を計算
       const bounds = new google.maps.LatLngBounds();
@@ -241,7 +241,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         right: 40,
       });
     }
-  }, [routePoints, visibleRoutes, selectedRouteId, isEditMode, isDemoMode]);
+  }, [routePoints, visibleRoutes, selectedRouteId, isEditMode, isCreationMode]);
 
   // ランニングルートの描画
   useEffect(() => {
@@ -263,6 +263,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           strokeOpacity: 1.0,
           strokeWeight: 4,
           map: mapRef.current,
+          zIndex: isEditMode || isCreationMode ? 1000 : 1, // 編集・作成時は最前面表示
         });
       }
 
@@ -271,7 +272,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         // 既存のリスナーをクリア
         google.maps.event.clearListeners(routePolylineRef.current, "click");
 
-        if ((isEditMode || isDemoMode) && onRouteLineClick) {
+        if ((isEditMode || isCreationMode) && onRouteLineClick) {
           routePolylineRef.current.addListener("click", (event: google.maps.MapMouseEvent) => {
             // ドラッグ中はポリラインクリックを無視
             if (isDraggingRef.current) {
@@ -294,7 +295,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         }
       }
 
-      // 記録中・編集中・個別表示の場合、線の色を更新
+      // 記録中・編集中・個別表示の場合、線の色とzIndexを更新
       if (routePolylineRef.current) {
         routePolylineRef.current.setOptions({
           strokeColor: isRecording ? "#FF0000" : isEditMode ? "#FF8C00" : "#0000FF",
@@ -315,9 +316,9 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
   // ルートポイントマーカーの描画（編集モード、手動作成モード、または個別ルート表示時）
   useEffect(() => {
-    // 表示すべき状態かチェック（全ルート表示時は個別ルートのピン・ラベルを非表示）
+    // 表示すべき状態かチェック（編集モードまたは手動作成モード時は常に表示）
     const shouldShowMarkersAndLabels =
-      (isEditMode || isDemoMode || routePoints.length > 0) && visibleRoutes.size === 0;
+      isEditMode || isCreationMode || (routePoints.length > 0 && visibleRoutes.size === 0);
 
     if (!shouldShowMarkersAndLabels) {
       routeMarkersRef.current.forEach((marker) => marker.setMap(null));
@@ -357,11 +358,11 @@ const MapComponent: React.FC<GoogleMapProps> = ({
     // ポイント数が変わった場合、または編集・手動作成モードが変わった場合のみ再描画
     const modeChanged =
       prevModeRef.current.isEditMode !== isEditMode ||
-      prevModeRef.current.isDemoMode !== isDemoMode;
+      prevModeRef.current.isCreationMode !== isCreationMode;
     const needsRedraw = routeMarkersRef.current.length !== routePoints.length || modeChanged;
 
     // 現在のモードを記録
-    prevModeRef.current = { isEditMode, isDemoMode };
+    prevModeRef.current = { isEditMode, isCreationMode };
 
     if (!needsRedraw) {
       // ポイント数が同じ場合は位置とラベルを更新
@@ -410,7 +411,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
       // ズームレベルに応じた間引き処理
       const getDisplayIndices = () => {
         // 編集モード・手動作成モード時は全ポイント表示
-        if (isEditMode || isDemoMode) {
+        if (isEditMode || isCreationMode) {
           return routePoints.map((_, index) => index);
         }
 
@@ -476,7 +477,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               ? "#dc3545"
               : isEditMode
               ? "#FF8C00"
-              : isDemoMode
+              : isCreationMode
               ? "#17a2b8"
               : "#0000FF",
             fillOpacity: 0.9,
@@ -484,7 +485,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             strokeWeight: 2,
           },
           optimized: false,
-          zIndex: -100,
+          zIndex: -100, // 編集・作成時は距離ラベルより後面
         });
 
         let longTapTimer: NodeJS.Timeout | null = null;
@@ -501,7 +502,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         // マウス/タッチダウンでロングタップ検出とドラッグ準備
         const handleMouseDown = (e: any) => {
           // 編集モード・手動作成モードでない場合は無効化
-          if (!isEditMode && !isDemoMode) return;
+          if (!isEditMode && !isCreationMode) return;
 
           // 左クリック（button 0）またはタッチ
           if (e.domEvent && (e.domEvent.button === 0 || e.domEvent.type === "touchstart")) {
@@ -731,7 +732,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
         // クリックイベント（ドラッグモード中は無視）
         marker.addListener("click", (e: google.maps.MapMouseEvent) => {
-          if (!isEditMode && !isDemoMode) return;
+          if (!isEditMode && !isCreationMode) return;
 
           // ドラッグモード中はクリックを無視
           if (dragModeActive || isDraggingRef.current) {
@@ -794,7 +795,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             e.domEvent.stopPropagation();
             e.domEvent.preventDefault();
           }
-          if (isEditMode || isDemoMode) {
+          if (isEditMode || isCreationMode) {
             // 最新のonPointDelete関数を使用
             if (onPointDeleteRef.current) {
               onPointDeleteRef.current(index);
@@ -830,13 +831,13 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             scaledSize: new google.maps.Size(60, 20),
             anchor: new google.maps.Point(30, 25), // 中心点を調整
           },
-          zIndex: 50,
+          zIndex: isEditMode || isCreationMode ? 800 : 50, // 編集・作成時の距離ラベル最前面表示
         });
 
         distanceLabelsRef.current.push(distanceLabel);
       });
     }
-  }, [routePoints, isEditMode, isDemoMode, visibleRoutes, zoomTrigger]);
+  }, [routePoints, isEditMode, isCreationMode, visibleRoutes, zoomTrigger]);
 
   // 全ルート表示機能
   useEffect(() => {
@@ -851,7 +852,6 @@ const MapComponent: React.FC<GoogleMapProps> = ({
     allRoutesLabelsRef.current = [];
 
     // 全ルート表示のON/OFF切り替え時の処理
-
     if (visibleRoutes.size > 0 && allRoutes.length > 0) {
       // visibleRoutesに含まれるルートのみを表示
       const routesToDisplay = allRoutes.filter((route) => visibleRoutes.has(route.id));
@@ -892,6 +892,12 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
           const isSelected = route.id === selectedRouteId;
 
+          // 選択ルートが編集モード時は非表示、その他は通常表示
+          if (isSelected && (isEditMode || isCreationMode)) {
+            // 選択されたルートが編集モード時はポリラインを表示しない
+            return;
+          }
+
           // 選択ルートはハイライト、その他はより見やすく表示
           const routeOpacity = isSelected ? 1.0 : 0.6;
           const routeWeight = isSelected ? 4 : 3;
@@ -905,14 +911,25 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             strokeOpacity: routeOpacity,
             strokeWeight: routeWeight,
             map: mapRef.current,
+            zIndex: isSelected ? 5 : 1, // 選択ルートを前面表示
           });
 
-          // ポリラインクリックでルートを選択
-          polyline.addListener("click", () => {
-            if (onRouteSelect) {
-              onRouteSelect(route);
-            }
-          });
+          // ポリラインクリック処理
+          if (!isEditMode && !isCreationMode) {
+            // 通常時：ルート選択
+            polyline.addListener("click", () => {
+              if (onRouteSelect) {
+                onRouteSelect(route);
+              }
+            });
+          } else if (!isSelected && (isEditMode || isCreationMode) && onMapClick) {
+            // 編集・作成モード時の未選択ルート：ピン追加
+            polyline.addListener("click", (event: google.maps.MapMouseEvent) => {
+              if (event.latLng) {
+                onMapClick(event.latLng.lat(), event.latLng.lng());
+              }
+            });
+          }
 
           allRoutesPolylinesRef.current.push(polyline);
 
@@ -966,6 +983,11 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             const isStart = pointIndex === 0;
             const isEnd = pointIndex === path.length - 1;
 
+            // 選択ルートが編集モード時はマーカーも非表示
+            if (isSelected && (isEditMode || isCreationMode)) {
+              return;
+            }
+
             // ピン作成（間引き表示でパフォーマンス改善）
             const marker = new google.maps.Marker({
               position: point,
@@ -988,12 +1010,24 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                 strokeWeight: isSelected ? 2 : 1.5,
               },
               optimized: false,
-              zIndex: -100,
+              zIndex: isSelected ? -80 : isEditMode || isCreationMode ? -120 : -100,
             });
+
+            // 編集・作成モード時に未選択ルートのピンクリックでピン追加
+            if (!isSelected && (isEditMode || isCreationMode) && onMapClick) {
+              marker.addListener("click", () => {
+                onMapClick(point.lat, point.lng);
+              });
+            }
 
             allRoutesMarkersRef.current.push(marker);
 
             // 距離ラベル作成（選択・非選択ルート共に表示）
+            // 選択ルートが編集モード時は距離ラベルも非表示
+            if (isSelected && (isEditMode || isCreationMode)) {
+              return;
+            }
+
             const distanceLabel = new google.maps.Marker({
               position: {
                 lat: point.lat + (isSelected ? 0.00008 : 0.00006),
@@ -1002,25 +1036,31 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               map: mapRef.current!,
               icon: {
                 url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-                  <svg xmlns="http://www.w3.org/2000/svg" width="60" height="${
-                    isSelected ? 20 : 16
-                  }" viewBox="0 0 60 ${isSelected ? 20 : 16}">
-                    <rect x="0" y="0" width="60" height="${isSelected ? 20 : 16}" rx="${
-                  isSelected ? 10 : 8
-                }" fill="${isSelected ? "rgba(0,0,0,0.8)" : "rgba(102,102,102,0.8)"}" stroke="${
-                  isSelected ? "white" : "#ddd"
-                }" stroke-width="1"/>
-                    <text x="30" y="${isSelected ? 14 : 11}" text-anchor="middle" fill="${
+                  <svg xmlns="http://www.w3.org/2000/svg" width="${isSelected ? 60 : 45}" height="${
+                  isSelected ? 20 : 16
+                }" viewBox="0 0 ${isSelected ? 60 : 45} ${isSelected ? 20 : 16}">
+                    <rect x="0" y="0" width="${isSelected ? 60 : 45}" height="${
+                  isSelected ? 20 : 16
+                }" rx="${isSelected ? 10 : 8}" fill="${
+                  isSelected ? "rgba(0,0,0,0.8)" : "rgba(102,102,102,0.8)"
+                }" stroke="${isSelected ? "white" : "#ddd"}" stroke-width="1"/>
+                    <text x="${isSelected ? 30 : 22.5}" y="${
+                  isSelected ? 14 : 11
+                }" text-anchor="middle" fill="${
                   isSelected ? "white" : "white"
-                }" font-family="Arial" font-size="${isSelected ? 12 : 10}" font-weight="bold">
+                }" font-family="Arial" font-size="${isSelected ? 12 : 9}" font-weight="bold">
                       ${formatDistance(cumulativeDistances[pointIndex])}
                     </text>
                   </svg>
                 `)}`,
-                scaledSize: new google.maps.Size(60, isSelected ? 20 : 16),
-                anchor: new google.maps.Point(30, isSelected ? 25 : 20),
+                scaledSize: new google.maps.Size(isSelected ? 60 : 45, isSelected ? 20 : 16),
+                anchor: new google.maps.Point(isSelected ? 30 : 22.5, isSelected ? 25 : 20),
               },
-              zIndex: isSelected ? 300 : 250 + routeIndex,
+              zIndex: isSelected
+                ? 300
+                : isEditMode || isCreationMode
+                ? 200 + routeIndex
+                : 250 + routeIndex,
             });
 
             allRoutesLabelsRef.current.push(distanceLabel);
@@ -1031,7 +1071,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
       // 全ルート表示時のマップ移動は無効化
       // ユーザーが手動で表示範囲を調整できるように変更
     }
-  }, [visibleRoutes, allRoutes, selectedRouteId, zoomTrigger]);
+  }, [visibleRoutes, allRoutes, selectedRouteId, zoomTrigger, isEditMode, isCreationMode]);
 
   // 現在位置アイコンの表示制御
 
@@ -1059,7 +1099,7 @@ interface GoogleMapWrapperProps {
   routePoints?: RoutePoint[];
   isRecording?: boolean;
   onMapClick?: (lat: number, lng: number) => void;
-  isDemoMode?: boolean;
+  isCreationMode?: boolean;
   isEditMode?: boolean;
   onPointDrag?: (index: number, lat: number, lng: number) => void;
   onPointDelete?: (index: number) => void;
@@ -1087,7 +1127,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
   routePoints,
   isRecording,
   onMapClick,
-  isDemoMode,
+  isCreationMode,
   isEditMode,
   onPointDrag,
   onPointDelete,
@@ -1118,7 +1158,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
             routePoints={routePoints}
             isRecording={isRecording}
             onMapClick={onMapClick}
-            isDemoMode={isDemoMode}
+            isCreationMode={isCreationMode}
             isEditMode={isEditMode}
             onPointDrag={onPointDrag}
             onPointDelete={onPointDelete}
@@ -1149,7 +1189,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
         routePoints={routePoints}
         isRecording={isRecording}
         onMapClick={onMapClick}
-        isDemoMode={isDemoMode}
+        isCreationMode={isCreationMode}
         isEditMode={isEditMode}
         onPointDrag={onPointDrag}
         onPointDelete={onPointDelete}

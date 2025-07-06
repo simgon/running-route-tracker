@@ -21,6 +21,7 @@ import {
   KeyboardArrowDown,
   Timeline,
   Schedule as TimeIcon,
+  DragHandle,
 } from "@mui/icons-material";
 import { RunningRoute } from "../lib/supabase";
 
@@ -38,6 +39,7 @@ interface RouteOverlayProps {
   onToggleRouteVisibility?: (routeId: string) => void;
   isExpanded?: boolean;
   onToggleExpanded?: () => void;
+  onReorderRoutes?: (newOrder: RunningRoute[]) => void;
 }
 
 const RouteOverlay: React.FC<RouteOverlayProps> = ({
@@ -54,10 +56,13 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
   onToggleRouteVisibility,
   isExpanded = false,
   onToggleExpanded,
+  onReorderRoutes,
 }) => {
   const isMobile = window.innerWidth <= 768;
   const [isDragging, setIsDragging] = React.useState(false);
   const [isCopyMode, setIsCopyMode] = React.useState(false);
+  const [draggedRoute, setDraggedRoute] = React.useState<RunningRoute | null>(null);
+  const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const routeRefsRef = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const formatDistance = (meters: number) => {
@@ -73,6 +78,58 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
     const s = seconds % 60;
 
     return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
+  // ドラッグ&ドロップハンドラー
+  const handleDragStart = (
+    e: React.DragEvent,
+    route: RunningRoute,
+    fromHandle: boolean = false
+  ) => {
+    if (isCopyMode || !fromHandle) {
+      e.preventDefault();
+      return;
+    }
+    setDraggedRoute(route);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", route.id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+
+    if (!draggedRoute || !onReorderRoutes) return;
+
+    const draggedIndex = routes.findIndex((route) => route.id === draggedRoute.id);
+    if (draggedIndex === -1 || draggedIndex === dropIndex) {
+      setDraggedRoute(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    // 新しい順序を作成
+    const newRoutes = [...routes];
+    const [removed] = newRoutes.splice(draggedIndex, 1);
+    newRoutes.splice(dropIndex, 0, removed);
+
+    onReorderRoutes(newRoutes);
+    setDraggedRoute(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedRoute(null);
+    setDragOverIndex(null);
   };
 
   // 選択されたルートにスクロール
@@ -366,8 +423,10 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
           </div>
         )}
 
-        {routes.map((route) => {
+        {routes.map((route, index) => {
           const isSelected = selectedRouteId === route.id;
+          const isDraggedOver = dragOverIndex === index;
+          const isBeingDragged = draggedRoute?.id === route.id;
 
           return (
             <Card
@@ -375,6 +434,10 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               ref={(el) => {
                 routeRefsRef.current[route.id] = el;
               }}
+              draggable={false}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, index)}
               onClick={(e) => {
                 if (isDragging) {
                   e.preventDefault();
@@ -403,20 +466,36 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                   ? "grey.100"
                   : "background.paper",
                 border: isCopyMode ? 2 : isSelected ? 2 : 1,
-                borderStyle: isCopyMode ? "dashed" : "solid",
-                borderColor: isCopyMode ? "warning.main" : isSelected ? "primary.main" : "divider",
+                borderStyle: isCopyMode ? "dashed" : isDraggedOver ? "dashed" : "solid",
+                borderColor: isCopyMode
+                  ? "warning.main"
+                  : isDraggedOver
+                  ? "success.main"
+                  : isSelected
+                  ? "primary.main"
+                  : "divider",
                 cursor: "pointer",
                 transition: "all 0.2s ease",
                 position: "relative",
                 userSelect: "none",
-                opacity: isCopyMode ? 0.9 : 1,
+                opacity: isCopyMode ? 0.9 : isBeingDragged ? 0.5 : 1,
+                transform: isDraggedOver ? "scale(1.02)" : "none",
+                boxShadow: isDraggedOver ? 3 : isSelected ? 2 : 1,
                 "&:hover": {
-                  transform: !isSelected ? "translateY(-1px)" : "none",
+                  transform:
+                    !isSelected && !isDraggedOver
+                      ? "translateY(-1px)"
+                      : isDraggedOver
+                      ? "scale(1.02)"
+                      : "none",
                   boxShadow: isSelected ? 4 : 2,
                   "& .action-buttons": {
                     opacity: 1,
                     visibility: "visible",
                   },
+                },
+                "&:active": {
+                  cursor: "pointer",
                 },
               }}
             >
@@ -449,6 +528,36 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                     )}
                   </IconButton>
                 </Tooltip>
+              )}
+
+              {/* ドラッグハンドル - ヘッダー中央 */}
+              {!isCopyMode && onReorderRoutes && (
+                <IconButton
+                  size="small"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, route, true)}
+                  onDragEnd={handleDragEnd}
+                  sx={{
+                    position: "absolute",
+                    top: 4,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    width: isMobile ? 20 : 24,
+                    height: isMobile ? 14 : 16,
+                    backgroundColor: "rgba(0,0,0,0.1)",
+                    color: "grey.600",
+                    cursor: "grab",
+                    borderRadius: "4px",
+                    "&:hover": {
+                      backgroundColor: "rgba(0,0,0,0.15)",
+                    },
+                    "&:active": {
+                      cursor: "grabbing",
+                    },
+                  }}
+                >
+                  <DragHandle sx={{ fontSize: "14px" }} />
+                </IconButton>
               )}
 
               {/* コピーモードインジケーター */}
@@ -533,7 +642,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               <CardContent
                 sx={{
                   pr: 1.5,
-                  pt: 1,
+                  pt: !isCopyMode && onReorderRoutes ? (isMobile ? 3 : 3.5) : 1, // ドラッグハンドルがある場合は上部余白を追加（モバイル対応）
                   pb: 1,
                   px: 1.5,
                   "&:last-child": { pb: 1 },

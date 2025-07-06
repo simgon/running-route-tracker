@@ -18,6 +18,7 @@ export interface RunningRoute {
   duration?: number; // 秒単位
   route_data: LineString;
   elevation_data?: number[];
+  order_index?: number; // 並び替え順序
   created_at: string;
   updated_at: string;
 }
@@ -95,7 +96,9 @@ export const getUserRunningRoutes = async (anonymousUserId?: string) => {
     return [];
   }
   
-  const { data, error } = await query.order('created_at', { ascending: false });
+  const { data, error } = await query
+    .order('order_index', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false });
 
   if (error) {
     throw new Error(`Failed to fetch routes: ${error.message}`);
@@ -134,6 +137,21 @@ export const deleteRunningRoute = async (routeId: string) => {
 
   if (error) {
     throw new Error(`Failed to delete route: ${error.message}`);
+  }
+};
+
+// ルートの並び替え順序を更新する関数
+export const updateRoutesOrder = async (routeIds: string[]) => {
+  // 各ルートのorder_indexを個別に更新
+  for (let i = 0; i < routeIds.length; i++) {
+    const { error } = await supabase
+      .from('running_routes')
+      .update({ order_index: i })
+      .eq('id', routeIds[i]);
+
+    if (error) {
+      throw new Error(`Failed to update route order for ${routeIds[i]}: ${error.message}`);
+    }
   }
 };
 

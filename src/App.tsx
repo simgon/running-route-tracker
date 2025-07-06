@@ -13,7 +13,7 @@ import CurrentLocationButton from "./components/CurrentLocationButton";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { useGeolocation } from "./hooks/useGeolocation";
 import { useRouteStorage } from "./hooks/useRouteStorage";
-import { RunningRoute } from "./lib/supabase";
+import { RunningRoute, updateRoutesOrder } from "./lib/supabase";
 import { RoutePoint } from "./hooks/useRunningRoute";
 import "./App.css";
 
@@ -43,7 +43,7 @@ const AppContent: React.FC = () => {
     loadUserRoutes,
     isLoading: isSaving,
   } = useRouteStorage();
-  const [isManualMode, setIsManualMode] = useState(false);
+  const [isCreationMode, setIsCreationMode] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [loadedRoute, setLoadedRoute] = useState<RoutePoint[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -253,7 +253,7 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    if (isManualMode) {
+    if (isCreationMode) {
       // 手動モード：クリックでポイント追加
       const manualPosition = {
         lat,
@@ -281,7 +281,7 @@ const AppContent: React.FC = () => {
       if (editableRoute.length > 0) {
         setEditableRoute((prev) => prev.slice(0, -1));
       }
-    } else if (isManualMode) {
+    } else if (isCreationMode) {
       // 手動モード：editableRouteから末尾を削除
       if (editableRoute.length > 0) {
         setEditableRoute((prev) => prev.slice(0, -1));
@@ -314,9 +314,9 @@ const AppContent: React.FC = () => {
       // 手動作成モード時はeditableRouteを使用
       const routeToSave = editableRoute;
 
-      const distance = isManualMode ? calculateTotalDistance(editableRoute) : 0;
+      const distance = isCreationMode ? calculateTotalDistance(editableRoute) : 0;
       // customDurationが渡された場合は手動入力された時間を使用、それ以外は0
-      const duration = customDuration !== undefined ? customDuration : (isManualMode ? 0 : 0);
+      const duration = customDuration !== undefined ? customDuration : (isCreationMode ? 0 : 0);
 
       await saveRoute(name, description, routeToSave, distance, duration);
 
@@ -334,7 +334,7 @@ const AppContent: React.FC = () => {
       // 保存成功後はルートをクリア
       setLoadedRoute([]);
       setEditableRoute([]);
-      setIsManualMode(false); // 手動作成モード終了
+      setIsCreationMode(false); // 手動作成モード終了
     } catch (error) {
       // エラーはSaveRouteModalで表示される
       throw error;
@@ -363,14 +363,14 @@ const AppContent: React.FC = () => {
         setIsEditMode(true);
         setEditableRoute([...loadedRoute]); // loadedRouteの内容をeditableRouteにコピー
       }
-      setIsManualMode(false);
+      setIsCreationMode(false);
       return;
     }
 
     // 選択されたルートが異なる場合：そのルートを編集モードで表示
     setSelectedRouteId(route.id);
     setIsEditMode(true); // 編集モード有効
-    setIsManualMode(false); // 新規手動作成モードはキャンセル
+    setIsCreationMode(false); // 新規手動作成モードはキャンセル
     setLoadedRoute(routePoints);
     setEditableRoute([...routePoints]); // 編集可能な状態で設定
 
@@ -439,6 +439,31 @@ const AppContent: React.FC = () => {
     loadInitialRoutes();
   }, []);
 
+  // ルート並び替え処理
+  const handleReorderRoutes = async (newRoutes: RunningRoute[]) => {
+    try {
+      // 新しい順序でルートを更新
+      setSavedRoutes(newRoutes);
+      setAllRoutes(newRoutes);
+      
+      // DBに並び替え順序を保存
+      const routeIds = newRoutes.map(route => route.id);
+      await updateRoutesOrder(routeIds);
+    } catch (error) {
+      console.error("ルート並び替えエラー:", error);
+      showToast("ルートの並び替えに失敗しました", "error");
+      
+      // エラー時は元の順序に戻す
+      try {
+        const routes = await loadUserRoutes();
+        setSavedRoutes(routes);
+        setAllRoutes(routes);
+      } catch (reloadError) {
+        console.error("ルート再読み込みエラー:", reloadError);
+      }
+    }
+  };
+
   // 手動作成開始
   const handleStartManualCreation = () => {
     // 現在の状態をクリア
@@ -448,7 +473,7 @@ const AppContent: React.FC = () => {
     setEditableRoute([]);
 
     // 手動作成モードで記録開始
-    setIsManualMode(true);
+    setIsCreationMode(true);
   };
 
   // AIルート処理
@@ -460,7 +485,7 @@ const AppContent: React.FC = () => {
 
     // AIで生成されたルートを編集可能な状態で設定
     setEditableRoute(route);
-    setIsManualMode(true); // 手動モードとして扱い、編集・保存可能にする
+    setIsCreationMode(true); // 手動モードとして扱い、編集・保存可能にする
 
     showToast("AIルートが生成されました！必要に応じて編集して保存してください。", "success");
   };
@@ -482,7 +507,7 @@ const AppContent: React.FC = () => {
 
     // コピーしたルートを編集可能な状態で設定
     setEditableRoute(routePoints);
-    setIsManualMode(true); // 手動モードとして扱い、編集・保存可能にする
+    setIsCreationMode(true); // 手動モードとして扱い、編集・保存可能にする
 
     showToast(`「${route.name}」をコピーしました！編集して保存してください。`, "success");
   };
@@ -567,7 +592,7 @@ const AppContent: React.FC = () => {
   // ポイントドラッグ処理（ちらつき防止のため参照を保持）
   const handlePointDrag = React.useCallback(
     (index: number, lat: number, lng: number) => {
-      if (isEditMode || isManualMode) {
+      if (isEditMode || isCreationMode) {
         setEditableRoute((prevRoute) => {
           const newRoute = [...prevRoute];
           newRoute[index] = {
@@ -579,17 +604,17 @@ const AppContent: React.FC = () => {
         });
       }
     },
-    [isEditMode, isManualMode]
+    [isEditMode, isCreationMode]
   );
 
   // ポイント削除処理
   const handlePointDelete = React.useCallback(
     (index: number) => {
-      if (isEditMode || isManualMode) {
+      if (isEditMode || isCreationMode) {
         setEditableRoute((prevRoute) => prevRoute.filter((_, i) => i !== index));
       }
     },
-    [isEditMode, isManualMode]
+    [isEditMode, isCreationMode]
   );
 
   // ドラッグ状態管理のコールバック
@@ -638,7 +663,7 @@ const AppContent: React.FC = () => {
   const handleRouteLineClick = React.useCallback(
     (lat: number, lng: number) => {
       console.log("handleRouteLineClick called at:", lat, lng, "isDragging:", isDragging);
-      if (!isEditMode && !isManualMode) return;
+      if (!isEditMode && !isCreationMode) return;
 
       // ドラッグ中はピン挿入を無効化
       if (isDragging) {
@@ -683,7 +708,7 @@ const AppContent: React.FC = () => {
         return newRoute;
       });
     },
-    [isEditMode, isManualMode, editableRoute, isDragging]
+    [isEditMode, isCreationMode, editableRoute, isDragging]
   );
 
   // 点と線分の距離を計算
@@ -886,7 +911,7 @@ const AppContent: React.FC = () => {
                   ❌ {error.message}
                 </div>
               )}
-              {isManualMode && (
+              {isCreationMode && (
                 // 手動作成モード：保存とクリアボタンのみ
                 <>
                   <button
@@ -898,7 +923,7 @@ const AppContent: React.FC = () => {
                   <button
                     onClick={() => {
                       setEditableRoute([]);
-                      setIsManualMode(false); // 手動作成モード終了
+                      setIsCreationMode(false); // 手動作成モード終了
                     }}
                     style={getButtonStyle("108, 117, 125")}
                   >
@@ -916,7 +941,7 @@ const AppContent: React.FC = () => {
             </div>
 
             {/* モード説明 */}
-            {/* {isManualMode && (
+            {/* {isCreationMode && (
               <div
                 style={{
                   backgroundColor: "#d1ecf1",
@@ -967,14 +992,14 @@ const AppContent: React.FC = () => {
                   routePoints={
                     isEditMode
                       ? editableRoute
-                      : isManualMode && editableRoute.length > 0
+                      : isCreationMode && editableRoute.length > 0
                       ? editableRoute
                       : visibleRoutes.size > 0
                       ? []
                       : loadedRoute
                   }
                   onMapClick={handleMapClick}
-                  isDemoMode={isManualMode}
+                  isCreationMode={isCreationMode}
                   isEditMode={isEditMode}
                   onPointDrag={handlePointDrag}
                   onPointDelete={handlePointDelete}
@@ -1020,6 +1045,7 @@ const AppContent: React.FC = () => {
               onStartManualCreation={handleStartManualCreation}
               onStartAIGeneration={() => setShowAIOptimizer(true)}
               onStartRouteCopy={handleRouteCopy}
+              onReorderRoutes={handleReorderRoutes}
               visibleRoutes={visibleRoutes}
               onToggleRouteVisibility={toggleRouteVisibility}
               isExpanded={isRouteOverlayExpanded}
@@ -1062,7 +1088,7 @@ const AppContent: React.FC = () => {
         isOpen={showSaveModal}
         onClose={() => setShowSaveModal(false)}
         onSave={handleSaveRoute}
-        distance={isManualMode ? calculateTotalDistance(editableRoute) : 0}
+        distance={isCreationMode ? calculateTotalDistance(editableRoute) : 0}
         duration={0}
         isLoading={isSaving}
       />
