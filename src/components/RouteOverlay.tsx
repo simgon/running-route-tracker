@@ -142,11 +142,13 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
 
   // リサイザーハンドラー
   const handleResizeStart = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     setIsResizing(true);
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     setResizeStartY(clientY);
     setResizeStartHeight(overlayHeight);
-    e.preventDefault();
   };
 
   const handleResizeMove = React.useCallback(
@@ -251,10 +253,16 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
             alignItems: "center",
             justifyContent: "center",
             zIndex: 1001,
+            userSelect: "none",
+            WebkitUserSelect: "none",
+            MozUserSelect: "none",
+            msUserSelect: "none",
+            touchAction: "none", // タッチスクロールも無効化
             "&:hover": {
               backgroundColor: "rgba(0,0,0,0.3)",
             },
           }}
+          draggable={false}
         >
           <ResizeIcon 
             sx={{ 
