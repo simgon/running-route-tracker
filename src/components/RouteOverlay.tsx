@@ -22,6 +22,7 @@ import {
   Timeline,
   Schedule as TimeIcon,
   DragHandle,
+  Height as ResizeIcon,
 } from "@mui/icons-material";
 import { RunningRoute } from "../lib/supabase";
 
@@ -40,6 +41,8 @@ interface RouteOverlayProps {
   isExpanded?: boolean;
   onToggleExpanded?: () => void;
   onReorderRoutes?: (newOrder: RunningRoute[]) => void;
+  overlayHeight?: number;
+  onHeightChange?: (height: number) => void;
 }
 
 const RouteOverlay: React.FC<RouteOverlayProps> = ({
@@ -57,12 +60,17 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
   isExpanded = false,
   onToggleExpanded,
   onReorderRoutes,
+  overlayHeight = 180,
+  onHeightChange,
 }) => {
   const isMobile = window.innerWidth <= 768;
   const [isDragging, setIsDragging] = React.useState(false);
   const [isCopyMode, setIsCopyMode] = React.useState(false);
   const [draggedRoute, setDraggedRoute] = React.useState<RunningRoute | null>(null);
   const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
+  const [isResizing, setIsResizing] = React.useState(false);
+  const [resizeStartY, setResizeStartY] = React.useState(0);
+  const [resizeStartHeight, setResizeStartHeight] = React.useState(overlayHeight);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const routeRefsRef = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const formatDistance = (meters: number) => {
@@ -132,6 +140,49 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
     setDragOverIndex(null);
   };
 
+  // リサイザーハンドラー
+  const handleResizeStart = (e: React.MouseEvent | React.TouchEvent) => {
+    setIsResizing(true);
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    setResizeStartY(clientY);
+    setResizeStartHeight(overlayHeight);
+    e.preventDefault();
+  };
+
+  const handleResizeMove = React.useCallback(
+    (e: MouseEvent | TouchEvent) => {
+      if (!isResizing || !onHeightChange) return;
+
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      const deltaY = resizeStartY - clientY; // 上方向に移動で高さ増加
+      const newHeight = Math.max(120, Math.min(window.innerHeight * 0.8, resizeStartHeight + deltaY));
+      
+      onHeightChange(newHeight);
+    },
+    [isResizing, resizeStartY, resizeStartHeight, onHeightChange]
+  );
+
+  const handleResizeEnd = React.useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  // グローバルマウス/タッチイベントの管理
+  React.useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleResizeMove);
+      document.addEventListener('mouseup', handleResizeEnd);
+      document.addEventListener('touchmove', handleResizeMove, { passive: false });
+      document.addEventListener('touchend', handleResizeEnd);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleResizeMove);
+        document.removeEventListener('mouseup', handleResizeEnd);
+        document.removeEventListener('touchmove', handleResizeMove);
+        document.removeEventListener('touchend', handleResizeEnd);
+      };
+    }
+  }, [isResizing, handleResizeMove, handleResizeEnd]);
+
   // 選択されたルートにスクロール
   useEffect(() => {
     if (selectedRouteId && scrollContainerRef.current && routeRefsRef.current[selectedRouteId]) {
@@ -178,9 +229,43 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
         p: 2,
         boxShadow: 4,
         backdropFilter: "blur(10px)",
-        maxHeight: isExpanded ? "50vh" : 180, // 拡張時は画面の半分
+        maxHeight: isExpanded ? overlayHeight : 180, // 拡張時のみ動的な高さ
       }}
     >
+      {/* リサイザーハンドル - 拡張時のみ表示 */}
+      {onHeightChange && isExpanded && (
+        <Box
+          onMouseDown={handleResizeStart}
+          onTouchStart={handleResizeStart}
+          sx={{
+            position: "absolute",
+            top: -2,
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: 60,
+            height: 8,
+            backgroundColor: "rgba(0,0,0,0.2)",
+            borderRadius: "0 0 4px 4px",
+            cursor: "ns-resize",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1001,
+            "&:hover": {
+              backgroundColor: "rgba(0,0,0,0.3)",
+            },
+          }}
+        >
+          <ResizeIcon 
+            sx={{ 
+              fontSize: "12px", 
+              color: "white",
+              transform: "rotate(90deg)"
+            }} 
+          />
+        </Box>
+      )}
+
       <Box
         sx={{
           display: "flex",
@@ -241,11 +326,11 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
           scrollbarWidth: "none", // Firefox
           msOverflowStyle: "none", // IE/Edge
           cursor: isExpanded ? "default" : "grab",
-          maxHeight: isExpanded ? "calc(50vh - 100px)" : undefined, // ヘッダー分を除く
+          maxHeight: isExpanded ? `${overlayHeight - 100}px` : undefined, // ヘッダー分を除く
           // デスクトップでのグリッド表示時の重複を防ぐ
           ...(isExpanded && {
             overflow: "auto",
-            height: "calc(50vh - 100px)",
+            height: `${overlayHeight - 100}px`,
           }),
         }}
         className="route-scroll-container"

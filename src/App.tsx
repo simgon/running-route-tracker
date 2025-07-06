@@ -66,6 +66,7 @@ const AppContent: React.FC = () => {
     heading: number;
   } | null>(null);
   const [isRouteOverlayExpanded, setIsRouteOverlayExpanded] = useState(false);
+  const [routeOverlayHeight, setRouteOverlayHeight] = useState(180);
   const mapRef = useRef<google.maps.Map | null>(null);
 
   // デフォルトの位置（東京駅）
@@ -218,6 +219,11 @@ const AppContent: React.FC = () => {
   // ルートオーバーレイの拡張状態をトグル
   const handleToggleRouteOverlayExpanded = () => {
     setIsRouteOverlayExpanded(!isRouteOverlayExpanded);
+  };
+
+  // ルートオーバーレイの高さ変更
+  const handleRouteOverlayHeightChange = (height: number) => {
+    setRouteOverlayHeight(height);
   };
 
   // マップをルートに合わせてフィット
@@ -1050,6 +1056,8 @@ const AppContent: React.FC = () => {
               onToggleRouteVisibility={toggleRouteVisibility}
               isExpanded={isRouteOverlayExpanded}
               onToggleExpanded={handleToggleRouteOverlayExpanded}
+              overlayHeight={routeOverlayHeight}
+              onHeightChange={handleRouteOverlayHeightChange}
             />
           </div>
         </div>
