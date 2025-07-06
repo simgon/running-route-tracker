@@ -162,11 +162,14 @@ const AppContent: React.FC = () => {
           // iOS 13+ でのPermission要求（存在する場合のみ）
           const DeviceOrientationEventAny = DeviceOrientationEvent as any;
           if (DeviceOrientationEventAny.requestPermission) {
-            alert("iOS Permission要求中...");
+            alert("iOS Permission要求中...\n次のダイアログで「許可」を選択してください");
+            
+            // ユーザーアクションが必要なので、確実にユーザーのクリックイベント内で実行
             const permission = await DeviceOrientationEventAny.requestPermission();
             alert(`Permission結果: ${permission}`);
+            
             if (permission !== "granted") {
-              throw new Error("Permission denied");
+              throw new Error(`Permission denied: ${permission}`);
             }
           } else {
             alert("Permission不要（Androidまたは古いiOS）");
@@ -200,7 +203,7 @@ const AppContent: React.FC = () => {
           alert(`最終的なdeviceHeading: ${deviceHeading}`);
           console.log("最終的なdeviceHeading:", deviceHeading);
         } catch (err) {
-          alert(`エラー発生: ${err}`);
+          alert(`エラー発生: ${err}\n\nHTTPSサイトでアクセスしてください。また、設定で「モーションとオリエンテーションへのアクセス」を許可してください。`);
           console.log("デバイス方向の取得をスキップ:", err);
         }
       } else {
