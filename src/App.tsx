@@ -1079,8 +1079,9 @@ const AppContent: React.FC = () => {
               </Box>
             )}
 
-            {/* ルートオーバーレイ */}
-            <RouteOverlay
+            {/* ルートオーバーレイ（編集・作成時は非表示） */}
+            {!isCreationMode && !isEditMode && (
+              <RouteOverlay
               routes={savedRoutes}
               selectedRouteId={selectedRouteId}
               onSelectRoute={handleSelectRoute}
@@ -1100,6 +1101,7 @@ const AppContent: React.FC = () => {
               isCreationMode={isCreationMode}
               isEditMode={isEditMode}
             />
+            )}
           </div>
         </div>
       </div>
