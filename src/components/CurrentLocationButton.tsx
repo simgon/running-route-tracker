@@ -32,12 +32,12 @@ const CurrentLocationButton: React.FC<CurrentLocationButtonProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleClick = () => {
+  const handleClick = async () => {
     if (disabled) return;
 
     setIsLoading(true);
     try {
-      onLocationClick();
+      await onLocationClick();
     } finally {
       setIsLoading(false);
     }

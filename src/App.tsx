@@ -163,11 +163,11 @@ const AppContent: React.FC = () => {
           const DeviceOrientationEventAny = DeviceOrientationEvent as any;
           if (DeviceOrientationEventAny.requestPermission) {
             alert("iOS Permission要求中...\n次のダイアログで「許可」を選択してください");
-            
+
             // ユーザーアクションが必要なので、確実にユーザーのクリックイベント内で実行
             const permission = await DeviceOrientationEventAny.requestPermission();
             alert(`Permission結果: ${permission}`);
-            
+
             if (permission !== "granted") {
               throw new Error(`Permission denied: ${permission}`);
             }
@@ -179,7 +179,9 @@ const AppContent: React.FC = () => {
           alert("DeviceOrientationイベント待機開始...");
           const orientationPromise = new Promise<number>((resolve) => {
             const handleOrientation = (event: DeviceOrientationEvent) => {
-              alert(`DeviceOrientation取得: alpha=${event.alpha}, beta=${event.beta}, gamma=${event.gamma}`);
+              alert(
+                `DeviceOrientation取得: alpha=${event.alpha}, beta=${event.beta}, gamma=${event.gamma}`
+              );
               console.log("DeviceOrientation取得:", {
                 alpha: event.alpha,
                 beta: event.beta,
@@ -203,7 +205,9 @@ const AppContent: React.FC = () => {
           alert(`最終的なdeviceHeading: ${deviceHeading}`);
           console.log("最終的なdeviceHeading:", deviceHeading);
         } catch (err) {
-          alert(`エラー発生: ${err}\n\nHTTPSサイトでアクセスしてください。また、設定で「モーションとオリエンテーションへのアクセス」を許可してください。`);
+          alert(
+            `エラー発生: ${err}\n\nHTTPSサイトでアクセスしてください。また、設定で「モーションとオリエンテーションへのアクセス」を許可してください。`
+          );
           console.log("デバイス方向の取得をスキップ:", err);
         }
       } else {
