@@ -1204,6 +1204,7 @@ const AppContent: React.FC = () => {
                   minHeight: 80,
                 }}
               >
+                {/* 1. 保存ボタン */}
                 <Tooltip title="保存">
                   <IconButton
                     onClick={() => {
@@ -1227,25 +1228,7 @@ const AppContent: React.FC = () => {
                   </IconButton>
                 </Tooltip>
 
-                <Tooltip title="末尾ピン削除">
-                  <IconButton
-                    onClick={handleRemoveLastPin}
-                    disabled={editableRoute.length === 0}
-                    sx={{
-                      backgroundColor: editableRoute.length === 0 ? "grey.400" : "warning.main",
-                      color: "white",
-                      "&:hover": {
-                        backgroundColor: editableRoute.length === 0 ? "grey.400" : "warning.dark",
-                      },
-                      width: 65,
-                      height: 65,
-                    }}
-                  >
-                    <Backspace fontSize="large" />
-                  </IconButton>
-                </Tooltip>
-
-                {/* モード切り替えボタン */}
+                {/* 2. モード切り替えボタン */}
                 <Tooltip title="編集モード切り替え">
                   <IconButton
                     onClick={() => {
@@ -1260,18 +1243,18 @@ const AppContent: React.FC = () => {
                     sx={{
                       backgroundColor: "info.main",
                       color: "white",
-                      width: 48,
-                      height: 48,
+                      width: 56,
+                      height: 56,
                       "&:hover": {
                         backgroundColor: "info.dark",
                       },
                     }}
                   >
-                    <ChangeCircle fontSize="medium" />
+                    <ChangeCircle fontSize="large" />
                   </IconButton>
                 </Tooltip>
 
-                {/* 現在のモードに応じたアクションボタン */}
+                {/* 3. 現在のモードに応じたアクションボタン（最大サイズ） */}
                 {editingMode === 'add' && (
                   <Tooltip title="ピンを追加">
                     <IconButton
@@ -1279,14 +1262,14 @@ const AppContent: React.FC = () => {
                       sx={{
                         backgroundColor: "primary.main",
                         color: "white",
-                        width: 48,
-                        height: 48,
+                        width: 70,
+                        height: 70,
                         "&:hover": {
                           backgroundColor: "primary.dark",
                         },
                       }}
                     >
-                      <AddCircleOutline fontSize="medium" />
+                      <AddCircleOutline fontSize="large" />
                     </IconButton>
                   </Tooltip>
                 )}
@@ -1298,14 +1281,14 @@ const AppContent: React.FC = () => {
                       sx={{
                         backgroundColor: "secondary.main",
                         color: "white",
-                        width: 48,
-                        height: 48,
+                        width: 70,
+                        height: 70,
                         "&:hover": {
                           backgroundColor: "secondary.dark",
                         },
                       }}
                     >
-                      <Polyline fontSize="medium" />
+                      <Polyline fontSize="large" />
                     </IconButton>
                   </Tooltip>
                 )}
@@ -1317,18 +1300,38 @@ const AppContent: React.FC = () => {
                       sx={{
                         backgroundColor: "warning.main",
                         color: "white",
-                        width: 48,
-                        height: 48,
+                        width: 70,
+                        height: 70,
                         "&:hover": {
                           backgroundColor: "warning.dark",
                         },
                       }}
                     >
-                      <RemoveCircleOutline fontSize="medium" />
+                      <RemoveCircleOutline fontSize="large" />
                     </IconButton>
                   </Tooltip>
                 )}
 
+                {/* 4. 末尾削除ボタン */}
+                <Tooltip title="末尾ピン削除">
+                  <IconButton
+                    onClick={handleRemoveLastPin}
+                    disabled={editableRoute.length === 0}
+                    sx={{
+                      backgroundColor: editableRoute.length === 0 ? "grey.400" : "warning.main",
+                      color: "white",
+                      "&:hover": {
+                        backgroundColor: editableRoute.length === 0 ? "grey.400" : "warning.dark",
+                      },
+                      width: 60,
+                      height: 60,
+                    }}
+                  >
+                    <Backspace fontSize="large" />
+                  </IconButton>
+                </Tooltip>
+
+                {/* 5. キャンセルボタン */}
                 <Tooltip title="キャンセル">
                   <IconButton
                     onClick={() => {
