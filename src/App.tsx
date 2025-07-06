@@ -157,31 +157,21 @@ const AppContent: React.FC = () => {
 
       // コンパス方向を取得（モバイルデバイスの場合）
       if (typeof DeviceOrientationEvent !== "undefined") {
-        alert("DeviceOrientationEvent が利用可能です");
         try {
           // iOS 13+ でのPermission要求（存在する場合のみ）
           const DeviceOrientationEventAny = DeviceOrientationEvent as any;
           if (DeviceOrientationEventAny.requestPermission) {
-            alert("iOS Permission要求中...\n次のダイアログで「許可」を選択してください");
-
             // ユーザーアクションが必要なので、確実にユーザーのクリックイベント内で実行
             const permission = await DeviceOrientationEventAny.requestPermission();
-            alert(`Permission結果: ${permission}`);
 
             if (permission !== "granted") {
               throw new Error(`Permission denied: ${permission}`);
             }
-          } else {
-            alert("Permission不要（Androidまたは古いiOS）");
           }
 
           // デバイス方向イベントを一度だけ取得
-          alert("DeviceOrientationイベント待機開始...");
           const orientationPromise = new Promise<number>((resolve) => {
             const handleOrientation = (event: DeviceOrientationEvent) => {
-              alert(
-                `DeviceOrientation取得: alpha=${event.alpha}, beta=${event.beta}, gamma=${event.gamma}`
-              );
               console.log("DeviceOrientation取得:", {
                 alpha: event.alpha,
                 beta: event.beta,
@@ -195,23 +185,16 @@ const AppContent: React.FC = () => {
             window.addEventListener("deviceorientation", handleOrientation);
             // 3秒後にタイムアウト
             setTimeout(() => {
-              alert("DeviceOrientation タイムアウト（3秒経過）");
               console.log("DeviceOrientation タイムアウト");
               window.removeEventListener("deviceorientation", handleOrientation);
               resolve(deviceHeading);
             }, 3000);
           });
           deviceHeading = await orientationPromise;
-          alert(`最終的なdeviceHeading: ${deviceHeading}`);
           console.log("最終的なdeviceHeading:", deviceHeading);
         } catch (err) {
-          alert(
-            `エラー発生: ${err}\n\nHTTPSサイトでアクセスしてください。また、設定で「モーションとオリエンテーションへのアクセス」を許可してください。`
-          );
           console.log("デバイス方向の取得をスキップ:", err);
         }
-      } else {
-        alert("DeviceOrientationEvent が利用できません");
       }
 
       // 現在位置マーカーを表示
