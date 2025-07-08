@@ -647,10 +647,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               ? "#28a745"
               : isEnd
               ? "#dc3545"
-              : isEditMode
+              : (isEditMode || isCreationMode)
               ? "#FF8C00"
-              : isCreationMode
-              ? "#17a2b8"
               : "#0000FF",
             fillOpacity: 0.9,
             strokeColor: "#FFFFFF",
@@ -787,7 +785,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                   onPointDeleteRef.current(index);
                 }
               }, 1000); // さらに1000ms後
-            }, 200); // 500ms長押しでドラッグモード開始
+            }, 100); // 500ms長押しでドラッグモード開始
           }
         };
 
@@ -1239,9 +1237,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
           const displayIndices = getDisplayPoints();
 
-          displayIndices.forEach((pointIndex) => {
-            const point = path[pointIndex];
-
+          // ピン作成（すべてのポイントに対してピンを作成）
+          path.forEach((point, pointIndex) => {
             const isStart = pointIndex === 0;
             const isEnd = pointIndex === path.length - 1;
 
@@ -1250,7 +1247,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               return;
             }
 
-            // ピン作成（間引き表示でパフォーマンス改善）
+            // ピン作成（全ポイントに表示）
             const marker = new google.maps.Marker({
               position: point,
               map: mapRef.current!,
@@ -1259,13 +1256,13 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               }`,
               icon: {
                 path: google.maps.SymbolPath.CIRCLE,
-                scale: isSelected ? (isStart || isEnd ? 8 : 6) : isStart || isEnd ? 6 : 4,
-                fillColor: isStart
-                  ? "#28a745"
-                  : isEnd
-                  ? "#dc3545"
-                  : isSelected
-                  ? "#0000FF"
+                scale: isSelected ? (isStart || isEnd ? 8 : 6) : 4,
+                fillColor: isSelected
+                  ? isStart
+                    ? "#28a745"
+                    : isEnd
+                    ? "#dc3545"
+                    : "#0000FF"
                   : "#666666",
                 fillOpacity: isSelected ? 0.9 : 0.7,
                 strokeColor: "#FFFFFF",
@@ -1283,8 +1280,12 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             }
 
             allRoutesMarkersRef.current.push(marker);
+          });
 
-            // 距離ラベル作成（選択・非選択ルート共に表示）
+          // 距離ラベル作成（間引き表示）
+          displayIndices.forEach((pointIndex) => {
+            const point = path[pointIndex];
+
             // 選択ルートが編集モード時は距離ラベルも非表示
             if (isSelected && (isEditMode || isCreationMode)) {
               return;
@@ -1295,7 +1296,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               const currentZoom = mapRef.current?.getZoom() || 15;
               // ズームレベルに応じて間引きの間隔を調整
               let skipInterval = 1; // デフォルトは全て表示
-              
+
               if (currentZoom <= 13) {
                 skipInterval = 8; // 低ズーム時は8つおきに表示
               } else if (currentZoom <= 15) {
@@ -1303,20 +1304,24 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               } else if (currentZoom <= 17) {
                 skipInterval = 2; // 高ズーム時は2つおきに表示
               }
-              
+
               // 最初と最後のポイントは常に表示、それ以外は間引き
-              if (pointIndex !== 0 && pointIndex !== path.length - 1 && pointIndex % skipInterval !== 0) {
+              if (
+                pointIndex !== 0 &&
+                pointIndex !== path.length - 1 &&
+                pointIndex % skipInterval !== 0
+              ) {
                 return;
               }
             }
 
             // 通常ルート時と同じ重なり処理を使用
             const currentZoom = mapRef.current?.getZoom() || 15;
-            const allPointsForRoute = path.map(p => ({ 
-              lat: p.lat, 
-              lng: p.lng, 
-              timestamp: Date.now(), 
-              accuracy: 1 
+            const allPointsForRoute = path.map((p) => ({
+              lat: p.lat,
+              lng: p.lng,
+              timestamp: Date.now(),
+              accuracy: 1,
             }));
             const positions = calculateAllPositions(allPointsForRoute, currentZoom);
             const labelPosition = positions.labelPositions[pointIndex] || {

@@ -19,6 +19,7 @@ export interface RunningRoute {
   route_data: LineString;
   elevation_data?: number[];
   order_index?: number; // 並び替え順序
+  is_visible?: boolean; // ルート表示有無
   created_at: string;
   updated_at: string;
 }
@@ -34,7 +35,8 @@ export const saveRunningRoute = async (route: Omit<RunningRoute, 'id' | 'created
     routeData = {
       ...route,
       user_id: user.id,
-      anonymous_user_id: null
+      anonymous_user_id: null,
+      is_visible: route.is_visible ?? true  // デフォルトは表示
     };
   } else {
     // 匿名ユーザー（既存の仕組み）
@@ -42,7 +44,8 @@ export const saveRunningRoute = async (route: Omit<RunningRoute, 'id' | 'created
     routeData = {
       ...route,
       user_id: null,
-      anonymous_user_id: anonymousId
+      anonymous_user_id: anonymousId,
+      is_visible: route.is_visible ?? true  // デフォルトは表示
     };
   }
 
@@ -153,6 +156,24 @@ export const updateRoutesOrder = async (routeIds: string[]) => {
       throw new Error(`Failed to update route order for ${routeIds[i]}: ${error.message}`);
     }
   }
+};
+
+// ルートの表示状態を更新する関数
+export const updateRouteVisibility = async (routeId: string, isVisible: boolean) => {
+  const { data, error } = await supabase
+    .from('running_routes')
+    .update({
+      is_visible: isVisible,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', routeId)
+    .select();
+
+  if (error) {
+    throw new Error(`Failed to update route visibility: ${error.message}`);
+  }
+
+  return data[0];
 };
 
 // 匿名ユーザーのルートを認証済みユーザーに移行する関数

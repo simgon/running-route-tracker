@@ -130,24 +130,71 @@ export class AIRouteGenerator {
    * Convert Google Directions result to RoutePoint array
    */
   private convertDirectionsToRoutePoints(result: google.maps.DirectionsResult): RoutePoint[] {
-    const points: RoutePoint[] = [];
+    const allPoints: RoutePoint[] = [];
     const route = result.routes[0];
     
+    // まず全てのポイントを取得
     route.legs.forEach((leg) => {
       leg.steps.forEach((step) => {
         const path = step.path;
         path.forEach((point, index) => {
-          points.push({
+          allPoints.push({
             lat: point.lat(),
             lng: point.lng(),
             accuracy: 5,
-            timestamp: Date.now() + points.length * 1000,
+            timestamp: Date.now() + allPoints.length * 1000,
           });
         });
       });
     });
 
-    return points;
+    // 距離ベースで間引き処理（100m間隔）
+    return this.simplifyRouteByDistance(allPoints, 100);
+  }
+
+  /**
+   * 距離ベースでルートポイントを間引く
+   */
+  private simplifyRouteByDistance(points: RoutePoint[], minDistance: number): RoutePoint[] {
+    if (points.length <= 2) return points;
+
+    const simplified: RoutePoint[] = [points[0]]; // 最初のポイントは必ず含める
+    let lastPoint = points[0];
+
+    for (let i = 1; i < points.length - 1; i++) {
+      const currentPoint = points[i];
+      const distance = this.calculateDistance(lastPoint, currentPoint);
+
+      if (distance >= minDistance) {
+        simplified.push(currentPoint);
+        lastPoint = currentPoint;
+      }
+    }
+
+    // 最後のポイントは必ず含める
+    if (points.length > 1) {
+      simplified.push(points[points.length - 1]);
+    }
+
+    // さらに最大ポイント数で制限（30ポイント以下）
+    return this.limitMaxPoints(simplified, 30);
+  }
+
+  /**
+   * 最大ポイント数で制限
+   */
+  private limitMaxPoints(points: RoutePoint[], maxPoints: number): RoutePoint[] {
+    if (points.length <= maxPoints) return points;
+
+    const step = Math.floor(points.length / maxPoints);
+    const result: RoutePoint[] = [points[0]]; // 最初のポイント
+
+    for (let i = step; i < points.length - 1; i += step) {
+      result.push(points[i]);
+    }
+
+    result.push(points[points.length - 1]); // 最後のポイント
+    return result;
   }
 
   /**
@@ -394,8 +441,9 @@ export class AIRouteGenerator {
     const radius = distance / (2 * Math.PI);
     const waypoints: google.maps.LatLngLiteral[] = [];
     
-    for (let i = 0; i < 8; i++) {
-      const angle = (i / 8) * 2 * Math.PI;
+    // 8ポイントから4ポイントに削減
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * 2 * Math.PI;
       const lat = center.lat + (Math.sin(angle) * radius / 111320);
       const lng = center.lng + (Math.cos(angle) * radius / (111320 * Math.cos(center.lat * Math.PI / 180)));
       waypoints.push({ lat, lng });
@@ -408,8 +456,9 @@ export class AIRouteGenerator {
     const radius = distance / (4 * Math.PI);
     const waypoints: google.maps.LatLngLiteral[] = [];
     
-    for (let i = 0; i < 12; i++) {
-      const t = (i / 12) * 4 * Math.PI;
+    // 12ポイントから6ポイントに削減
+    for (let i = 0; i < 6; i++) {
+      const t = (i / 6) * 4 * Math.PI;
       const x = Math.sin(t) * radius;
       const y = Math.sin(t) * Math.cos(t) * radius;
       
@@ -438,14 +487,14 @@ export class AIRouteGenerator {
     const routes: RoutePoint[][] = [];
     const baseDistance = preferences.distance * 1000;
     
-    // Generate 3 different geometric patterns
+    // Generate 3 different geometric patterns with reduced waypoints
     const patterns = [
       this.generateCircularWaypoints(center, baseDistance),
       this.generateFigureEightWaypoints(center, baseDistance),
       this.generateOutAndBackWaypoints(center, baseDistance)
     ];
 
-    patterns.forEach((waypoints, patternIndex) => {
+    patterns.forEach((waypoints) => {
       const route: RoutePoint[] = [
         {
           lat: center.lat,

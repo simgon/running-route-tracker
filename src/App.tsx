@@ -8,10 +8,12 @@ import {
   SaveAlt,
   Cancel,
   Backspace,
+  Undo,
   AddCircleOutline,
   Polyline,
   RemoveCircleOutline,
   ChangeCircle,
+  Help,
 } from "@mui/icons-material";
 import GoogleMap from "./components/GoogleMap";
 import SaveRouteModal from "./components/SaveRouteModal";
@@ -21,10 +23,11 @@ import AIRouteOptimizer from "./components/AIRouteOptimizer";
 import LoginModal from "./components/LoginModal";
 import UserProfile from "./components/UserProfile";
 import CurrentLocationButton from "./components/CurrentLocationButton";
+import HelpModal from "./components/HelpModal";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { useGeolocation } from "./hooks/useGeolocation";
 import { useRouteStorage } from "./hooks/useRouteStorage";
-import { RunningRoute, updateRoutesOrder } from "./lib/supabase";
+import { RunningRoute, updateRoutesOrder, updateRouteVisibility } from "./lib/supabase";
 import { RoutePoint } from "./hooks/useRunningRoute";
 import "./App.css";
 
@@ -204,6 +207,7 @@ const AppContent: React.FC = () => {
   } | null>(null);
   const [showAIOptimizer, setShowAIOptimizer] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const [editingRoute, setEditingRoute] = useState<RunningRoute | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentLocationMarker, setCurrentLocationMarker] = useState<{
@@ -212,9 +216,18 @@ const AppContent: React.FC = () => {
   } | null>(null);
   const [isRouteOverlayExpanded, setIsRouteOverlayExpanded] = useState(false);
   const [routeOverlayHeight, setRouteOverlayHeight] = useState(500);
+  // 表示状態を初期化するヘルパー関数
+  const initializeVisibility = (routes: RunningRoute[]) => {
+    const visibleRouteIds = routes
+      .filter(route => route.is_visible !== false) // デフォルトはtrue
+      .map(route => route.id);
+    setVisibleRoutes(new Set(visibleRouteIds));
+  };
+
   const [editingMode, setEditingMode] = useState<"add" | "addOnRoute" | "delete" | "roundTrip">(
     "add"
   );
+  const [undoStack, setUndoStack] = useState<RoutePoint[][]>([]);
   const mapRef = useRef<google.maps.Map | null>(null);
 
   // デフォルトの位置（東京駅）
@@ -235,6 +248,20 @@ const AppContent: React.FC = () => {
     setTimeout(() => {
       setToastMessage(null);
     }, 3000); // 3秒後に非表示
+  };
+
+  // Undoスタックに現在の状態を保存
+  const pushToUndoStack = (currentRoute: RoutePoint[]) => {
+    setUndoStack(prev => {
+      const newStack = [...prev, [...currentRoute]];
+      // スタックサイズを制限（最大10回まで）
+      return newStack.length > 10 ? newStack.slice(1) : newStack;
+    });
+  };
+
+  // Undoスタックをクリア
+  const clearUndoStack = () => {
+    setUndoStack([]);
   };
 
   // 現在位置を取得して表示
@@ -354,6 +381,7 @@ const AppContent: React.FC = () => {
 
     if (isCreationMode) {
       // 手動モード：クリックでポイント追加
+      pushToUndoStack(editableRoute); // 追加前の状態を保存
       const manualPosition = {
         lat,
         lng,
@@ -363,6 +391,7 @@ const AppContent: React.FC = () => {
       setEditableRoute((prevRoute) => [...prevRoute, manualPosition]);
     } else if (isEditMode) {
       // 編集モード：クリックでピンを追加
+      pushToUndoStack(editableRoute); // 追加前の状態を保存
       const newPoint: RoutePoint = {
         lat,
         lng,
@@ -373,17 +402,19 @@ const AppContent: React.FC = () => {
     }
   };
 
-  // 末尾のピンを削除する機能
-  const handleRemoveLastPin = () => {
-    if (isEditMode) {
-      // 編集モード：editableRouteから末尾を削除
-      if (editableRoute.length > 0) {
-        setEditableRoute((prev) => prev.slice(0, -1));
-      }
-    } else if (isCreationMode) {
-      // 手動モード：editableRouteから末尾を削除
-      if (editableRoute.length > 0) {
-        setEditableRoute((prev) => prev.slice(0, -1));
+  // Undo/末尾削除機能
+  const handleUndoOrRemoveLastPin = () => {
+    if (undoStack.length > 0) {
+      // Undoが可能な場合はUndo実行
+      const previousState = undoStack[undoStack.length - 1];
+      setEditableRoute([...previousState]);
+      setUndoStack(prev => prev.slice(0, -1));
+    } else {
+      // Undoがない場合は末尾ピンを削除（Undoスタックには追加しない）
+      if (isEditMode || isCreationMode) {
+        if (editableRoute.length > 0) {
+          setEditableRoute((prev) => prev.slice(0, -1));
+        }
       }
     }
   };
@@ -400,6 +431,7 @@ const AppContent: React.FC = () => {
 
     if (editingMode === "add") {
       // ピン追加
+      pushToUndoStack(editableRoute); // 追加前の状態を保存
       const newPoint: RoutePoint = {
         lat,
         lng,
@@ -412,11 +444,13 @@ const AppContent: React.FC = () => {
       if (editableRoute.length > 0) {
         const targetIndex = findClosestPinIndex(lat, lng);
         if (targetIndex !== -1) {
+          pushToUndoStack(editableRoute); // 削除前の状態を保存
           setEditableRoute((prev) => prev.filter((_, index) => index !== targetIndex));
         }
       }
     } else if (editingMode === "addOnRoute") {
       // ルート上の最適な位置にピンを挿入
+      pushToUndoStack(editableRoute); // 追加前の状態を保存
       if (editableRoute.length >= 2) {
         const insertIndex = findBestInsertIndex(lat, lng);
         const newPoint: RoutePoint = {
@@ -554,6 +588,7 @@ const AppContent: React.FC = () => {
         const updatedRoutes = await loadUserRoutes();
         setSavedRoutes(updatedRoutes);
         setAllRoutes(updatedRoutes);
+        initializeVisibility(updatedRoutes);
       } catch (error) {
         console.error("ルート一覧更新エラー:", error);
       }
@@ -593,6 +628,7 @@ const AppContent: React.FC = () => {
           // 現在通常表示モードの場合：編集モードに切り替え
           setIsEditMode(true);
           setEditableRoute([...loadedRoute]); // loadedRouteの内容をeditableRouteにコピー
+          clearUndoStack(); // 編集開始時にUndoスタックをクリア
           // 編集モードに入る時のみマップビューを調整
           fitMapToRoute(loadedRoute);
         }
@@ -613,26 +649,65 @@ const AppContent: React.FC = () => {
   );
 
   // ルートの表示/非表示を切り替える
-  const toggleRouteVisibility = (routeId: string) => {
-    setVisibleRoutes((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(routeId)) {
-        newSet.delete(routeId);
-      } else {
-        newSet.add(routeId);
-      }
-      return newSet;
-    });
+  const toggleRouteVisibility = async (routeId: string) => {
+    const isCurrentlyVisible = visibleRoutes.has(routeId);
+    const newVisibility = !isCurrentlyVisible;
+    
+    try {
+      // データベースを先に更新
+      await updateRouteVisibility(routeId, newVisibility);
+      
+      // 成功したらローカル状態を更新
+      setVisibleRoutes((prev) => {
+        const newSet = new Set(prev);
+        if (isCurrentlyVisible) {
+          newSet.delete(routeId);
+        } else {
+          newSet.add(routeId);
+        }
+        return newSet;
+      });
+      
+      // allRoutesとsavedRoutesの表示状態も更新
+      setAllRoutes(prev => prev.map(route => 
+        route.id === routeId ? { ...route, is_visible: newVisibility } : route
+      ));
+      setSavedRoutes(prev => prev.map(route => 
+        route.id === routeId ? { ...route, is_visible: newVisibility } : route
+      ));
+    } catch (error) {
+      console.error("ルート表示状態の更新に失敗しました:", error);
+      showToast("表示状態の更新に失敗しました", "error");
+    }
   };
 
   // 全ルートの表示/非表示を切り替える
-  const toggleAllRoutesVisibility = () => {
-    if (visibleRoutes.size === savedRoutes.length && savedRoutes.length > 0) {
-      // 全て表示中の場合は全て非表示に
-      setVisibleRoutes(new Set());
-    } else {
-      // 一部または全て非表示の場合は全て表示に
-      setVisibleRoutes(new Set(savedRoutes.map((route) => route.id)));
+  const toggleAllRoutesVisibility = async () => {
+    const allVisible = visibleRoutes.size === savedRoutes.length && savedRoutes.length > 0;
+    const newVisibility = !allVisible;
+    
+    try {
+      // 全ルートの表示状態をデータベースで更新
+      const updatePromises = savedRoutes.map(route => 
+        updateRouteVisibility(route.id, newVisibility)
+      );
+      await Promise.all(updatePromises);
+      
+      // 成功したらローカル状態を更新
+      if (allVisible) {
+        // 全て表示中の場合は全て非表示に
+        setVisibleRoutes(new Set());
+      } else {
+        // 一部または全て非表示の場合は全て表示に
+        setVisibleRoutes(new Set(savedRoutes.map((route) => route.id)));
+      }
+      
+      // allRoutesとsavedRoutesの表示状態も更新
+      setAllRoutes(prev => prev.map(route => ({ ...route, is_visible: newVisibility })));
+      setSavedRoutes(prev => prev.map(route => ({ ...route, is_visible: newVisibility })));
+    } catch (error) {
+      console.error("一括表示状態の更新に失敗しました:", error);
+      showToast("一括表示状態の更新に失敗しました", "error");
     }
   };
 
@@ -647,6 +722,9 @@ const AppContent: React.FC = () => {
             const routes = await loadUserRoutes();
             setSavedRoutes(routes);
             setAllRoutes(routes);
+            
+            // データベースから読み込んだ表示状態を設定
+            initializeVisibility(routes);
           }, 1000);
         } catch (error) {
           console.error("ルート一覧の取得に失敗しました:", error);
@@ -666,6 +744,9 @@ const AppContent: React.FC = () => {
         const routes = await loadUserRoutes();
         setSavedRoutes(routes);
         setAllRoutes(routes);
+        
+        // データベースから読み込んだ表示状態を設定
+        initializeVisibility(routes);
       } catch (error) {
         console.error("初期ルート読み込みエラー:", error);
       }
@@ -741,6 +822,7 @@ const AppContent: React.FC = () => {
         const routes = await loadUserRoutes();
         setSavedRoutes(routes);
         setAllRoutes(routes);
+        initializeVisibility(routes);
       } catch (reloadError) {
         console.error("ルート再読み込みエラー:", reloadError);
       }
@@ -754,6 +836,7 @@ const AppContent: React.FC = () => {
     setSelectedRouteId(undefined);
     setLoadedRoute([]);
     setEditableRoute([]);
+    clearUndoStack(); // Undoスタックをクリア
 
     // 手動作成モードで記録開始
     setIsCreationMode(true);
@@ -817,6 +900,7 @@ const AppContent: React.FC = () => {
       const updatedRoutes = await loadUserRoutes();
       setSavedRoutes(updatedRoutes);
       setAllRoutes(updatedRoutes);
+      initializeVisibility(updatedRoutes);
 
       showToast("ルートが正常に更新されました！", "success");
     } catch (error) {
@@ -859,6 +943,7 @@ const AppContent: React.FC = () => {
         const updatedRoutes = await loadUserRoutes();
         setSavedRoutes(updatedRoutes);
         setAllRoutes(updatedRoutes);
+        initializeVisibility(updatedRoutes);
       } catch (error) {
         console.error("ルート一覧更新エラー:", error);
       }
@@ -869,6 +954,30 @@ const AppContent: React.FC = () => {
       showToast("ルートの更新に失敗しました。もう一度お試しください。", "error");
     }
   };
+
+  // ドラッグ開始状態を管理
+  const dragStartStateRef = useRef<RoutePoint[] | null>(null);
+
+  // ドラッグ開始時の状態を保存
+  const handleDragStartWithUndo = React.useCallback(() => {
+    dragStartStateRef.current = [...editableRoute];
+    console.log("App handleDragStart called");
+    setIsDragging(true);
+  }, [editableRoute]);
+
+  // ドラッグ終了時にUndoスタックに保存
+  const handleDragEndWithUndo = React.useCallback(() => {
+    if (dragStartStateRef.current) {
+      pushToUndoStack(dragStartStateRef.current);
+      dragStartStateRef.current = null;
+    }
+    console.log("App handleDragEnd called");
+    // 短時間の遅延後にドラッグ状態をリセット
+    setTimeout(() => {
+      console.log("App drag state reset after timeout");
+      setIsDragging(false);
+    }, 300); // 300msに調整
+  }, [pushToUndoStack]);
 
   // ポイントドラッグ処理（ちらつき防止のため参照を保持）
   const handlePointDrag = React.useCallback(
@@ -892,16 +1001,19 @@ const AppContent: React.FC = () => {
   const handlePointDelete = React.useCallback(
     (index: number) => {
       if (isEditMode || isCreationMode) {
+        pushToUndoStack(editableRoute); // 削除前の状態を保存
         setEditableRoute((prevRoute) => prevRoute.filter((_, i) => i !== index));
       }
     },
-    [isEditMode, isCreationMode]
+    [isEditMode, isCreationMode, editableRoute, pushToUndoStack]
   );
 
   // 往復ルート追加処理
   const handleAddRoundTrip = React.useCallback(
     (index: number) => {
       if (!isEditMode && !isCreationMode) return;
+
+      pushToUndoStack(editableRoute); // 追加前の状態を保存
 
       setEditableRoute((prevRoute) => {
         const newRoute = [...prevRoute];
@@ -924,23 +1036,9 @@ const AppContent: React.FC = () => {
 
       showToast(`末尾からピン${index + 1}までのルートを追加しました`, "success");
     },
-    [isEditMode, isCreationMode]
+    [isEditMode, isCreationMode, editableRoute, pushToUndoStack]
   );
 
-  // ドラッグ状態管理のコールバック
-  const handleDragStart = React.useCallback(() => {
-    console.log("App handleDragStart called");
-    setIsDragging(true);
-  }, []);
-
-  const handleDragEnd = React.useCallback(() => {
-    console.log("App handleDragEnd called");
-    // 短時間の遅延後にドラッグ状態をリセット
-    setTimeout(() => {
-      console.log("App drag state reset after timeout");
-      setIsDragging(false);
-    }, 300); // 300msに調整
-  }, []);
 
   // ルート削除処理
   const handleRouteDelete = async (routeId: string, routeName: string) => {
@@ -962,6 +1060,13 @@ const AppContent: React.FC = () => {
       // オーバーレイのルート一覧を更新
       setSavedRoutes((prevRoutes) => prevRoutes.filter((route) => route.id !== routeId));
       setAllRoutes((prevRoutes) => prevRoutes.filter((route) => route.id !== routeId));
+      
+      // 削除されたルートを表示状態からも除去
+      setVisibleRoutes((prevVisible) => {
+        const newVisible = new Set(prevVisible);
+        newVisible.delete(routeId);
+        return newVisible;
+      });
 
       showToast("ルートが削除されました。", "success");
     } catch (error) {
@@ -981,6 +1086,9 @@ const AppContent: React.FC = () => {
         console.log("Route line click ignored - dragging in progress");
         return;
       }
+
+      // ルート線クリック時のピン追加前にUndoスタックに保存
+      pushToUndoStack(editableRoute);
 
       // 最も近いセグメントを見つけて、そこにピンを挿入
       const newPoint: RoutePoint = {
@@ -1019,7 +1127,7 @@ const AppContent: React.FC = () => {
         return newRoute;
       });
     },
-    [isEditMode, isCreationMode, editableRoute, isDragging]
+    [isEditMode, isCreationMode, editableRoute, isDragging, pushToUndoStack]
   );
 
   // 点と線分の距離を計算
@@ -1122,8 +1230,23 @@ const AppContent: React.FC = () => {
           </div>
         </div>
 
-        {/* ユーザープロフィール/ログインボタン */}
-        <div style={{ textAlign: "right", flex: "0 0 auto" }}>
+        {/* ヘルプボタンとユーザープロフィール/ログインボタン */}
+        <div style={{ textAlign: "right", flex: "0 0 auto", display: "flex", alignItems: "center", gap: "10px" }}>
+          {/* ヘルプボタン */}
+          <Tooltip title="操作方法ガイド">
+            <IconButton
+              onClick={() => setShowHelpModal(true)}
+              sx={{
+                color: "rgba(255, 255, 255, 0.8)",
+                "&:hover": {
+                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  color: "white",
+                },
+              }}
+            >
+              <Help />
+            </IconButton>
+          </Tooltip>
           {user ? (
             <UserProfile />
           ) : (
@@ -1234,8 +1357,8 @@ const AppContent: React.FC = () => {
                   onPointDelete={handlePointDelete}
                   onPointClick={editingMode === "roundTrip" ? handleAddRoundTrip : undefined}
                   onRouteLineClick={handleRouteLineClick}
-                  onDragStart={handleDragStart}
-                  onDragEnd={handleDragEnd}
+                  onDragStart={handleDragStartWithUndo}
+                  onDragEnd={handleDragEndWithUndo}
                   allRoutes={allRoutes}
                   visibleRoutes={visibleRoutes}
                   selectedRouteId={selectedRouteId}
@@ -1485,32 +1608,49 @@ const AppContent: React.FC = () => {
                   </Tooltip>
                 )}
 
-                {/* 4. 末尾削除ボタン */}
+                {/* 4. Undo/末尾削除ボタン */}
                 <Tooltip
-                  title={editableRoute.length === 0 ? "削除するピンがありません" : "末尾ピン削除"}
+                  title={
+                    undoStack.length > 0
+                      ? "操作を元に戻す"
+                      : editableRoute.length === 0
+                      ? "操作できません"
+                      : "末尾ピン削除"
+                  }
                 >
                   <IconButton
-                    onClick={editableRoute.length === 0 ? undefined : handleRemoveLastPin}
+                    onClick={
+                      undoStack.length > 0 || editableRoute.length > 0
+                        ? handleUndoOrRemoveLastPin
+                        : undefined
+                    }
                     sx={{
                       backgroundColor:
-                        editableRoute.length === 0
-                          ? "rgba(255, 152, 0, 0.4)"
-                          : "rgba(255, 152, 0, 0.8)",
+                        undoStack.length > 0 || editableRoute.length > 0
+                          ? "rgba(255, 152, 0, 0.8)" // Undo時も削除時もオレンジ色
+                          : "rgba(255, 152, 0, 0.4)", // 無効時は薄いオレンジ
                       color: "white",
-                      opacity: editableRoute.length === 0 ? 0.6 : 1,
-                      cursor: editableRoute.length === 0 ? "not-allowed" : "pointer",
+                      opacity: undoStack.length > 0 || editableRoute.length > 0 ? 1 : 0.6,
+                      cursor:
+                        undoStack.length > 0 || editableRoute.length > 0
+                          ? "pointer"
+                          : "not-allowed",
                       boxShadow: "none",
                       "&:hover": {
                         backgroundColor:
-                          editableRoute.length === 0
-                            ? "rgba(255, 152, 0, 0.4)"
-                            : "rgba(255, 152, 0, 1)",
+                          undoStack.length > 0 || editableRoute.length > 0
+                            ? "rgba(255, 152, 0, 1)"
+                            : "rgba(255, 152, 0, 0.4)",
                       },
                       width: 56,
                       height: 56,
                     }}
                   >
-                    <Backspace fontSize="large" />
+                    {undoStack.length > 0 ? (
+                      <Undo fontSize="large" />
+                    ) : (
+                      <Backspace fontSize="large" />
+                    )}
                   </IconButton>
                 </Tooltip>
 
@@ -1618,6 +1758,9 @@ const AppContent: React.FC = () => {
 
       {/* ログインモーダル */}
       <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
+
+      {/* ヘルプモーダル */}
+      <HelpModal isOpen={showHelpModal} onClose={() => setShowHelpModal(false)} />
 
       {/* ルート編集モーダル */}
       <EditRouteModal
