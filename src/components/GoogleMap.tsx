@@ -3,6 +3,9 @@ import { Wrapper } from "@googlemaps/react-wrapper";
 import { RoutePoint } from "../hooks/useRunningRoute";
 import { RunningRoute } from "../lib/supabase";
 import CurrentLocationMarker from "./CurrentLocationMarker";
+import RouteAnimationOverlay from "./RouteAnimationOverlay";
+import RouteAnimationControls from "./RouteAnimationControls";
+import { useRouteAnimation, AnimationType } from "../hooks/useRouteAnimation";
 
 interface GoogleMapProps {
   center: google.maps.LatLngLiteral;
@@ -31,6 +34,8 @@ interface GoogleMapProps {
   } | null;
   onCurrentLocationFadeComplete?: () => void;
   onPointDoubleClick?: (index: number) => void;
+  enableAnimation?: boolean;
+  animationType?: AnimationType;
 }
 
 const MapComponent: React.FC<GoogleMapProps> = ({
@@ -57,6 +62,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   currentLocationMarker,
   onCurrentLocationFadeComplete,
   onPointDoubleClick,
+  enableAnimation = false,
+  animationType = 'draw',
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -75,6 +82,21 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   const dragStartPositionRef = useRef<{ x: number; y: number } | null>(null);
   const zoomListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const prevVisibleRoutesRef = useRef<Set<string>>(visibleRoutes);
+
+  // アニメーション機能
+  const {
+    isAnimating,
+    animationType: currentAnimationType,
+    config,
+    startAnimation,
+    stopAnimation,
+    updateConfig,
+    setAnimationType,
+  } = useRouteAnimation({
+    type: animationType,
+    autoStart: false,
+  });
+
 
   useEffect(() => {
     if (ref.current && !mapRef.current) {
@@ -1383,6 +1405,36 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           onFadeComplete={onCurrentLocationFadeComplete}
         />
       )}
+      
+      {/* ルートアニメーション */}
+      {enableAnimation && mapRef.current && (
+        <>
+          {routePoints && routePoints.length > 0 && (
+            <RouteAnimationOverlay
+              map={mapRef.current}
+              routePoints={routePoints}
+              isAnimating={isAnimating}
+              animationType={currentAnimationType}
+              animationSpeed={config.speed}
+              color={config.color}
+              lineWidth={config.lineWidth}
+              onAnimationComplete={() => {
+                console.log('Animation completed');
+              }}
+            />
+          )}
+          <RouteAnimationControls
+            isAnimating={isAnimating}
+            animationType={currentAnimationType}
+            config={config}
+            onStartAnimation={() => routePoints && startAnimation(routePoints)}
+            onStopAnimation={stopAnimation}
+            onTypeChange={setAnimationType}
+            onConfigChange={updateConfig}
+            disabled={!routePoints || routePoints.length === 0}
+          />
+        </>
+      )}
     </div>
   );
 };
@@ -1415,6 +1467,8 @@ interface GoogleMapWrapperProps {
   } | null;
   onCurrentLocationFadeComplete?: () => void;
   onPointDoubleClick?: (index: number) => void;
+  enableAnimation?: boolean;
+  animationType?: AnimationType;
 }
 
 const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
@@ -1442,6 +1496,8 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
   currentLocationMarker,
   onCurrentLocationFadeComplete,
   onPointDoubleClick,
+  enableAnimation,
+  animationType,
 }) => {
   const render = (status: any) => {
     switch (status) {
@@ -1475,6 +1531,8 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
             currentLocationMarker={currentLocationMarker}
             onCurrentLocationFadeComplete={onCurrentLocationFadeComplete}
             onPointDoubleClick={onPointDoubleClick}
+            enableAnimation={enableAnimation}
+            animationType={animationType}
           />
         );
       default:
@@ -1508,6 +1566,8 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
         currentLocationMarker={currentLocationMarker}
         onCurrentLocationFadeComplete={onCurrentLocationFadeComplete}
         onPointDoubleClick={onPointDoubleClick}
+        enableAnimation={enableAnimation}
+        animationType={animationType}
       />
     </Wrapper>
   );

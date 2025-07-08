@@ -14,6 +14,7 @@ import {
   RemoveCircleOutline,
   ChangeCircle,
   Help,
+  Movie,
 } from "@mui/icons-material";
 import GoogleMap from "./components/GoogleMap";
 import SaveRouteModal from "./components/SaveRouteModal";
@@ -208,6 +209,8 @@ const AppContent: React.FC = () => {
   const [showAIOptimizer, setShowAIOptimizer] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [enableRouteAnimation, setEnableRouteAnimation] = useState(false);
+
   const [editingRoute, setEditingRoute] = useState<RunningRoute | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentLocationMarker, setCurrentLocationMarker] = useState<{
@@ -1232,6 +1235,22 @@ const AppContent: React.FC = () => {
 
         {/* ヘルプボタンとユーザープロフィール/ログインボタン */}
         <div style={{ textAlign: "right", flex: "0 0 auto", display: "flex", alignItems: "center", gap: "10px" }}>
+          {/* アニメーションボタン */}
+          <Tooltip title={enableRouteAnimation ? "ルートアニメーションを無効化" : "ルートアニメーションを有効化"}>
+            <IconButton
+              onClick={() => setEnableRouteAnimation(!enableRouteAnimation)}
+              sx={{
+                color: enableRouteAnimation ? "#FF4444" : "rgba(255, 255, 255, 0.8)",
+                "&:hover": {
+                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  color: enableRouteAnimation ? "#FF6666" : "white",
+                },
+              }}
+            >
+              <Movie />
+            </IconButton>
+          </Tooltip>
+          
           {/* ヘルプボタン */}
           <Tooltip title="操作方法ガイド">
             <IconButton
@@ -1366,6 +1385,8 @@ const AppContent: React.FC = () => {
                   currentLocationMarker={currentLocationMarker}
                   onCurrentLocationFadeComplete={handleCurrentLocationFadeComplete}
                   onPointDoubleClick={handleAddRoundTrip}
+                  enableAnimation={enableRouteAnimation}
+                  animationType="draw"
                 />
                 {/* 現在位置ボタン */}
                 <CurrentLocationButton
