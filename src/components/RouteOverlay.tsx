@@ -23,6 +23,9 @@ import {
   Schedule as TimeIcon,
   DragHandle,
   Height as ResizeIcon,
+  Add as AddIcon,
+  SmartToy as AIIcon,
+  Create as CreateIcon,
 } from "@mui/icons-material";
 import { RunningRoute } from "../lib/supabase";
 
@@ -432,7 +435,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                   },
                 }}
               >
-                {isCopyMode ? "✏️" : "📋"}
+                {isCopyMode ? <CreateIcon sx={{ fontSize: 16 }} /> : <CopyIcon sx={{ fontSize: 16 }} />}
               </IconButton>
             </Tooltip>
 
@@ -467,7 +470,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               }}
             >
               <div style={{ fontSize: isMobile ? "20px" : "24px", marginBottom: "8px" }}>
-                {isCopyMode ? "📋" : "✏️"}
+                {isCopyMode ? <CopyIcon sx={{ fontSize: 'inherit' }} /> : <AddIcon sx={{ fontSize: 'inherit' }} />}
               </div>
               <div style={{ fontSize: isMobile ? "11px" : "13px", lineHeight: "1.2" }}>
                 {isCopyMode ? "ルートコピー\n(ルートを選択)" : "新規ルート作成"}
@@ -518,7 +521,9 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               e.currentTarget.style.transform = "translateY(0)";
             }}
           >
-            <div style={{ fontSize: isMobile ? "20px" : "24px", marginBottom: "8px" }}>🤖</div>
+            <div style={{ fontSize: isMobile ? "20px" : "24px", marginBottom: "8px" }}>
+              <AIIcon sx={{ fontSize: 'inherit' }} />
+            </div>
             <div style={{ fontSize: isMobile ? "12px" : "14px" }}>AIルート生成</div>
           </div>
         )}
