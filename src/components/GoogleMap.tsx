@@ -63,7 +63,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   onCurrentLocationFadeComplete,
   onPointDoubleClick,
   enableAnimation = false,
-  animationType = 'draw',
+  animationType = "draw",
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -96,7 +96,6 @@ const MapComponent: React.FC<GoogleMapProps> = ({
     type: animationType,
     autoStart: false,
   });
-
 
   useEffect(() => {
     if (ref.current && !mapRef.current) {
@@ -143,8 +142,9 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
   // ズーム変更時の再描画用のstate
   const [zoomTrigger, setZoomTrigger] = useState(0);
+  const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ズーム変更イベントリスナーを管理
+  // ズーム変更イベントリスナーを管理（デバウンス処理追加）
   useEffect(() => {
     if (mapRef.current) {
       // 既存のリスナーをクリア
@@ -154,18 +154,26 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
       // ズーム変更イベントリスナーを追加
       zoomListenerRef.current = mapRef.current.addListener("zoom_changed", () => {
+        // 既存のタイマーをクリア（デバウンス）
+        if (zoomTimeoutRef.current) {
+          clearTimeout(zoomTimeoutRef.current);
+        }
+
         // ズーム変更時にマーカーを再描画（全モードで実行）
         if (routeMarkersRef.current.length > 0 || allRoutesMarkersRef.current.length > 0) {
-          // マーカーをクリアして再作成をトリガー
-          setTimeout(() => {
+          // デバウンス: 300ms後に実行（連続ズーム時は最後のみ実行）
+          zoomTimeoutRef.current = setTimeout(() => {
             setZoomTrigger((prev) => prev + 1);
-          }, 100);
+          }, 300);
         }
       });
 
       return () => {
         if (zoomListenerRef.current) {
           google.maps.event.removeListener(zoomListenerRef.current);
+        }
+        if (zoomTimeoutRef.current) {
+          clearTimeout(zoomTimeoutRef.current);
         }
       };
     }
@@ -289,7 +297,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           strokeOpacity: 1.0,
           strokeWeight: 4,
           map: mapRef.current,
-          zIndex: isEditMode || isCreationMode ? 1000 : 1, // 編集・作成時は最前面表示
+          zIndex: isEditMode || isCreationMode ? 1000 : 1,
         });
       }
 
@@ -332,7 +340,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
       routePolylineRef.current.setMap(null);
       routePolylineRef.current = null;
     }
-  }, [routePoints, isRecording, isEditMode, onRouteLineClick]);
+  }, [routePoints, isRecording, isEditMode, isCreationMode, onRouteLineClick, zoomTrigger]);
 
   // 最新の関数をRefで保持（useEffect削除）
   const onPointDragRef = useRef(onPointDrag);
@@ -669,7 +677,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               ? "#28a745"
               : isEnd
               ? "#dc3545"
-              : (isEditMode || isCreationMode)
+              : isEditMode || isCreationMode
               ? "#FF8C00"
               : "#0000FF",
             fillOpacity: 0.9,
@@ -1181,9 +1189,9 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           }
 
           // 選択ルートはハイライト、その他はより見やすく表示
-          const routeOpacity = isSelected ? 1.0 : 0.6;
-          const routeWeight = isSelected ? 4 : 3;
-          const routeColor = isSelected ? "#0000FF" : "#666666";
+          const routeOpacity = isSelected ? 1.0 : 0.4; // 非選択ルートをより薄く
+          const routeWeight = isSelected ? 5 : 2; // 選択ルートをより太く、非選択をより細く
+          const routeColor = isSelected ? "#0000FF" : "#666666"; // 非選択ルートはグレー
 
           // ポリライン作成
           const polyline = new google.maps.Polyline({
@@ -1193,7 +1201,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             strokeOpacity: routeOpacity,
             strokeWeight: routeWeight,
             map: mapRef.current,
-            zIndex: isSelected ? 5 : 1, // 選択ルートを前面表示
+            zIndex: isSelected ? 10 : -routeIndex, // 選択ルートを前面表示、非選択は後方に重ねる
           });
 
           // ポリラインクリック処理
@@ -1230,12 +1238,22 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
           // パフォーマンス改善：ズームレベルに応じた距離ベース間引き
           const getDisplayPoints = () => {
+            const currentZoom = mapRef.current?.getZoom() || 15;
+
             // 選択ルートは全ピン表示
             if (isSelected) {
               return path.map((_, index) => index);
             }
 
-            let targetInterval: number = 1000; // 非選択ルートは1000m間隔
+            // 非選択ルートはズームレベルに応じて間引き
+            let targetInterval: number;
+            if (currentZoom >= 16) {
+              targetInterval = 500; // 高ズーム: より詳細表示
+            } else if (currentZoom >= 14) {
+              targetInterval = 1000; // 中ズーム: 標準表示
+            } else {
+              targetInterval = 2000; // 低ズーム: 簡略表示
+            }
 
             // 選択・非選択共に動的間隔で表示
             const displayIndices = [0]; // スタートは必ず含める
@@ -1405,7 +1423,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
           onFadeComplete={onCurrentLocationFadeComplete}
         />
       )}
-      
+
       {/* ルートアニメーション */}
       {enableAnimation && mapRef.current && (
         <>
@@ -1419,7 +1437,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               color={config.color}
               lineWidth={config.lineWidth}
               onAnimationComplete={() => {
-                console.log('Animation completed');
+                console.log("Animation completed");
               }}
             />
           )}

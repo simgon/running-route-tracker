@@ -560,6 +560,10 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                   onSelectRoute(route);
                 }
               }}
+              onTouchStart={(e) => {
+                // タッチ開始時にフォーカスを無効化
+                e.currentTarget.blur();
+              }}
               sx={{
                 minWidth: isMobile ? 155 : 200,
                 maxWidth: isMobile ? 155 : 250,
@@ -586,6 +590,15 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                 opacity: isCopyMode ? 0.9 : isBeingDragged ? 0.5 : 1,
                 transform: isDraggedOver ? "scale(1.02)" : "none",
                 boxShadow: isDraggedOver ? 3 : isSelected ? 2 : 1,
+                // スマホでのフォーカス状態を無効化
+                "&:focus": {
+                  outline: "none",
+                },
+                "&:focus-visible": {
+                  outline: "none",
+                },
+                // タッチ時のハイライトを無効化
+                "-webkit-tap-highlight-color": "transparent",
                 "&:hover": {
                   transform:
                     !isSelected && !isDraggedOver
