@@ -35,7 +35,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         display: isStreetViewMode ? "none" : "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "5px 20px",
+        padding: "5px 5px",
         width: "100%",
         flexDirection: "row",
         backgroundColor: "#282c34",
@@ -49,7 +49,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           flex: "0 0 auto",
           display: "flex",
           alignItems: "center",
-          gap: "10px",
+          gap: "5px",
           cursor: "pointer",
         }}
         onClick={() => window.location.reload()}
@@ -77,7 +77,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           flex: "0 0 auto",
           display: "flex",
           alignItems: "center",
-          gap: "10px",
+          gap: "5px",
         }}
       >
         {/* アニメーションボタン */}
