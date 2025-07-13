@@ -61,6 +61,7 @@ const MainApp: React.FC = () => {
   const [editingMode, setEditingMode] = useState<EditingMode>("add");
   const [undoStack, setUndoStack] = useState<RoutePoint[][]>([]);
   const [initialLocationSet, setInitialLocationSet] = useState(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState(0);
   const mapRef = useRef<google.maps.Map | null>(null);
 
 
@@ -103,6 +104,58 @@ const MainApp: React.FC = () => {
   // Undoスタックをクリア
   const clearUndoStack = () => {
     setUndoStack([]);
+  };
+
+  // デバイスの方角を取得
+  const getCompassHeading = (): Promise<number> => {
+    return new Promise((resolve) => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isIOS = /iphone|ipad|ipod/.test(userAgent);
+      const isAndroid = /android/.test(userAgent);
+
+      if (!isIOS && !isAndroid) {
+        resolve(0);
+        return;
+      }
+
+      const eventType = isIOS ? "deviceorientation" : "deviceorientationabsolute";
+      let degrees: number | null = null;
+
+      const orientationHandler = (event: any) => {
+        if (isIOS) {
+          degrees = event.webkitCompassHeading || event.alpha || 0;
+        } else {
+          degrees = event.alpha || 0;
+        }
+      };
+
+      const setupEventListener = () => {
+        window.addEventListener(eventType, orientationHandler, true);
+
+        setTimeout(() => {
+          window.removeEventListener(eventType, orientationHandler, true);
+          resolve(degrees || 0);
+        }, 1000);
+      };
+
+      // iOSの場合はPermission要求
+      if (isIOS && typeof (DeviceOrientationEvent as any).requestPermission === "function") {
+        (DeviceOrientationEvent as any)
+          .requestPermission()
+          .then((response: string) => {
+            if (response === "granted") {
+              setupEventListener();
+            } else {
+              resolve(0);
+            }
+          })
+          .catch(() => {
+            resolve(0);
+          });
+      } else {
+        setupEventListener();
+      }
+    });
   };
 
   // 位置情報トラッキングのトグル
@@ -857,17 +910,50 @@ const MainApp: React.FC = () => {
   // トラッキング中の位置更新でマーカーを更新
   useEffect(() => {
     if (position && isTracking) {
-      setCurrentLocationMarker({
-        position: { lat: position.lat, lng: position.lng },
-        heading: position.heading || 0,
-      });
+      const now = Date.now();
       
-      // マップの中心をユーザーの現在位置に移動
+      // 2秒以内の連続更新を制限
+      if (now - lastUpdateTime < 2000) {
+        return;
+      }
+      
+      setLastUpdateTime(now);
+      
+      const updateMarkerWithHeading = async () => {
+        // コンパス方向を取得
+        let heading = position.heading || 0;
+        try {
+          const compassHeading = await getCompassHeading();
+          heading = compassHeading;
+        } catch (error) {
+          console.log("コンパス取得失敗:", error);
+        }
+
+        setCurrentLocationMarker({
+          position: { lat: position.lat, lng: position.lng },
+          heading: heading,
+        });
+      };
+
+      updateMarkerWithHeading();
+      
+      // マップの中心移動は初回のみ、または大きく移動した場合のみ
       if (mapRef.current) {
-        mapRef.current.setCenter({ lat: position.lat, lng: position.lng });
+        const currentCenter = mapRef.current.getCenter();
+        if (currentCenter) {
+          // 簡易的な距離計算（geometry libraryを使わない）
+          const latDiff = Math.abs(currentCenter.lat() - position.lat);
+          const lngDiff = Math.abs(currentCenter.lng() - position.lng);
+          const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+          
+          // 0.0005度以上移動した場合のみマップ中心を更新（約50m相当）
+          if (distance > 0.0005) {
+            mapRef.current.setCenter({ lat: position.lat, lng: position.lng });
+          }
+        }
       }
     }
-  }, [position, isTracking]);
+  }, [position, isTracking, lastUpdateTime]);
 
   return (
     <div className="App">
