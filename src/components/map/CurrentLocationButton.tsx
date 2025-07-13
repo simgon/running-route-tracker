@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { IconButton, styled } from "@mui/material";
-import { MyLocation, LocationOff } from "@mui/icons-material";
+import { LocationOn, LocationOff } from "@mui/icons-material";
 
 interface CurrentLocationButtonProps {
   onLocationToggle: (enable: boolean) => void;
@@ -55,7 +55,7 @@ const CurrentLocationButton: React.FC<CurrentLocationButtonProps> = ({
       aria-label={isTracking ? "位置情報トラッキングを停止" : "位置情報トラッキングを開始"}
       $isActive={isTracking}
     >
-      {isTracking ? <MyLocation /> : <LocationOff />}
+      {isTracking ? <LocationOn /> : <LocationOff />}
     </LocationButton>
   );
 };
