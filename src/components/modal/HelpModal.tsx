@@ -27,6 +27,9 @@ import {
   TouchApp,
   Mouse,
   Keyboard,
+  LocationOn,
+  LocationOff,
+  Navigation,
 } from "@mui/icons-material";
 
 interface HelpModalProps {
@@ -38,6 +41,27 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
   const isMobile = window.innerWidth <= 768;
 
   const sections = [
+    {
+      title: "位置情報トラッキング",
+      icon: <LocationOn color="primary" />,
+      items: [
+        {
+          action: "トラッキング開始",
+          description: "位置情報ボタンをクリックして現在位置の追跡を開始",
+          icon: <LocationOn color="success" />
+        },
+        {
+          action: "リアルタイム位置表示",
+          description: "現在地が青いマーカーで表示され、方角も表示されます",
+          icon: <Navigation color="info" />
+        },
+        {
+          action: "トラッキング停止",
+          description: "位置情報ボタンをもう一度クリックして追跡を停止",
+          icon: <LocationOff color="error" />
+        }
+      ]
+    },
     {
       title: "基本操作",
       icon: <TouchApp color="primary" />,
@@ -269,6 +293,10 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             💡 ヒント
           </Typography>
           <Typography variant="body2" sx={{ lineHeight: 1.6 }}>
+            • 位置情報トラッキングは高頻度（200ms間隔）で更新され、正確な現在地を表示します
+            <br />
+            • トラッキング中は地図が自動的に移動しないため、快適に操作できます
+            <br />
             • 地図を拡大すると距離ラベルがより詳細に表示されます
             <br />
             • ルートは自動的にクラウドに保存され、どのデバイスからでもアクセスできます

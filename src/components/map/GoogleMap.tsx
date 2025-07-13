@@ -154,9 +154,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
   // ズーム変更時の再描画用のstate
   const [zoomTrigger, setZoomTrigger] = useState(0);
-  const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ズーム変更イベントリスナーを管理（デバウンス処理追加）
+  // ズーム変更イベントリスナーを管理
   useEffect(() => {
     if (mapRef.current) {
       // 既存のリスナーをクリア
@@ -166,26 +165,15 @@ const MapComponent: React.FC<GoogleMapProps> = ({
 
       // ズーム変更イベントリスナーを追加
       zoomListenerRef.current = mapRef.current.addListener("zoom_changed", () => {
-        // 既存のタイマーをクリア（デバウンス）
-        if (zoomTimeoutRef.current) {
-          clearTimeout(zoomTimeoutRef.current);
-        }
-
-        // ズーム変更時にマーカーを再描画（全モードで実行）
+        // ズーム変更時にマーカーを即座に再描画
         if (routeMarkersRef.current.length > 0 || allRoutesMarkersRef.current.length > 0) {
-          // デバウンス: 300ms後に実行（連続ズーム時は最後のみ実行）
-          zoomTimeoutRef.current = setTimeout(() => {
-            setZoomTrigger((prev) => prev + 1);
-          }, 300);
+          setZoomTrigger((prev) => prev + 1);
         }
       });
 
       return () => {
         if (zoomListenerRef.current) {
           google.maps.event.removeListener(zoomListenerRef.current);
-        }
-        if (zoomTimeoutRef.current) {
-          clearTimeout(zoomTimeoutRef.current);
         }
       };
     }
