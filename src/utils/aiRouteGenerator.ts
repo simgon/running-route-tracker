@@ -1,4 +1,4 @@
-import { RoutePoint } from "../hooks/useRunningRoute";
+import { RoutePoint } from "../types/route";
 
 export interface RoutePreferences {
   distance: number; // km

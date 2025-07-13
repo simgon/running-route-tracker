@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Dialog, DialogContent, Button, Box, Alert, Typography, Divider } from "@mui/material";
 import { DirectionsRun } from "@mui/icons-material";
 import { Google as GoogleIcon } from "@mui/icons-material";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../../contexts/AuthContext";
 
 interface LoginModalProps {
   isOpen: boolean;

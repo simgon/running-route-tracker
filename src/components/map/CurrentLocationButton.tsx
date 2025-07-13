@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { IconButton, styled } from "@mui/material";
 import { MyLocation } from "@mui/icons-material";
 
@@ -37,11 +37,20 @@ const CurrentLocationButton: React.FC<CurrentLocationButtonProps> = ({
 
     setIsLoading(true);
     try {
-      // iOS 13+ でのみPermission要求
+      // iOS 13+ でのPermission要求
       if (typeof (DeviceOrientationEvent as any).requestPermission === "function") {
-        (DeviceOrientationEvent as any).requestPermission();
+        const response = await (DeviceOrientationEvent as any).requestPermission();
+        console.log("DeviceOrientation permission:", response);
       }
-      await onLocationClick();
+      
+      // 位置情報の許可も確認
+      if (navigator.geolocation) {
+        await onLocationClick();
+      } else {
+        console.error("Geolocation not supported");
+      }
+    } catch (error) {
+      console.error("Location button error:", error);
     } finally {
       setIsLoading(false);
     }

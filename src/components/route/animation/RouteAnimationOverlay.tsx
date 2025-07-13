@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { RoutePoint } from '../hooks/useRunningRoute';
+import React, { useEffect, useRef, useState } from "react";
+import { RoutePoint } from "../../../types/route";
 
 interface RouteAnimationOverlayProps {
   map: google.maps.Map;
   routePoints: RoutePoint[];
   isAnimating: boolean;
-  animationType: 'draw' | 'pulse' | 'flash' | 'none';
+  animationType: "draw" | "pulse" | "flash" | "none";
   animationSpeed?: number; // milliseconds per point
   onAnimationComplete?: () => void;
   color?: string;
@@ -19,7 +19,7 @@ export const RouteAnimationOverlay: React.FC<RouteAnimationOverlayProps> = ({
   animationType,
   animationSpeed = 100,
   onAnimationComplete,
-  color = '#FF4444',
+  color = "#FF4444",
   lineWidth = 4,
 }) => {
   // const [animatedPoints, setAnimatedPoints] = useState<RoutePoint[]>([]);
@@ -33,13 +33,13 @@ export const RouteAnimationOverlay: React.FC<RouteAnimationOverlayProps> = ({
       clearTimeout(animationRef.current);
       animationRef.current = null;
     }
-    
+
     if (polylineRef.current) {
       polylineRef.current.setMap(null);
       polylineRef.current = null;
     }
-    
-    markersRef.current.forEach(marker => marker.setMap(null));
+
+    markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
   };
 
@@ -62,10 +62,10 @@ export const RouteAnimationOverlay: React.FC<RouteAnimationOverlayProps> = ({
 
       // ポリライン更新
       if (polylineRef.current) {
-        polylineRef.current.setPath(newPoints.map(p => ({ lat: p.lat, lng: p.lng })));
+        polylineRef.current.setPath(newPoints.map((p) => ({ lat: p.lat, lng: p.lng })));
       } else {
         polylineRef.current = new google.maps.Polyline({
-          path: newPoints.map(p => ({ lat: p.lat, lng: p.lng })),
+          path: newPoints.map((p) => ({ lat: p.lat, lng: p.lng })),
           geodesic: true,
           strokeColor: color,
           strokeOpacity: 0.8,
@@ -86,7 +86,7 @@ export const RouteAnimationOverlay: React.FC<RouteAnimationOverlayProps> = ({
             scale: 8,
             fillColor: color,
             fillOpacity: 0.9,
-            strokeColor: '#FFFFFF',
+            strokeColor: "#FFFFFF",
             strokeWeight: 2,
           },
           animation: google.maps.Animation.DROP,
@@ -102,7 +102,7 @@ export const RouteAnimationOverlay: React.FC<RouteAnimationOverlayProps> = ({
             scale: 6,
             fillColor: color,
             fillOpacity: 0.7,
-            strokeColor: '#FFFFFF',
+            strokeColor: "#FFFFFF",
             strokeWeight: 2,
           });
         }, 200);
@@ -123,7 +123,7 @@ export const RouteAnimationOverlay: React.FC<RouteAnimationOverlayProps> = ({
 
     // 全ルートを一度に表示
     polylineRef.current = new google.maps.Polyline({
-      path: routePoints.map(p => ({ lat: p.lat, lng: p.lng })),
+      path: routePoints.map((p) => ({ lat: p.lat, lng: p.lng })),
       geodesic: true,
       strokeColor: color,
       strokeOpacity: 0.8,
@@ -176,7 +176,7 @@ export const RouteAnimationOverlay: React.FC<RouteAnimationOverlayProps> = ({
 
     // 全ルートを表示
     polylineRef.current = new google.maps.Polyline({
-      path: routePoints.map(p => ({ lat: p.lat, lng: p.lng })),
+      path: routePoints.map((p) => ({ lat: p.lat, lng: p.lng })),
       geodesic: true,
       strokeColor: color,
       strokeOpacity: 0.8,
@@ -212,19 +212,19 @@ export const RouteAnimationOverlay: React.FC<RouteAnimationOverlayProps> = ({
 
   // アニメーション開始
   useEffect(() => {
-    if (!isAnimating || animationType === 'none') {
+    if (!isAnimating || animationType === "none") {
       cleanupAnimation();
       return;
     }
 
     switch (animationType) {
-      case 'draw':
+      case "draw":
         startDrawAnimation();
         break;
-      case 'pulse':
+      case "pulse":
         startPulseAnimation();
         break;
-      case 'flash':
+      case "flash":
         startFlashAnimation();
         break;
     }

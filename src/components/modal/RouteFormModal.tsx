@@ -19,51 +19,56 @@ import {
   Schedule as TimeIcon,
   Timeline,
 } from "@mui/icons-material";
-import { RunningRoute } from "../lib/supabase";
+import { RunningRoute } from "../../lib/supabase";
 
-interface EditRouteModalProps {
+interface RouteFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (
+  // 新規保存用
+  onSave?: (name: string, description?: string, customDuration?: number) => Promise<void>;
+  distance?: number;
+  duration?: number;
+  // 編集用
+  onUpdate?: (
     routeId: string,
     updates: { name?: string; description?: string; duration?: number }
   ) => Promise<void>;
-  route: RunningRoute | null;
+  route?: RunningRoute | null;
   isLoading?: boolean;
+  mode: "save" | "edit";
 }
 
-const EditRouteModal: React.FC<EditRouteModalProps> = ({
+const RouteFormModal: React.FC<RouteFormModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  distance = 0,
+  duration = 0,
+  onUpdate,
   route,
   isLoading = false,
+  mode,
 }) => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [error, setError] = useState("");
   const [hours, setHours] = useState("");
   const [minutes, setMinutes] = useState("");
   const [seconds, setSeconds] = useState("");
   const [useManualDuration, setUseManualDuration] = useState(false);
-  const [error, setError] = useState("");
 
-  // ルート情報をフォームに設定
+  // 編集モード時のルート情報をフォームに設定
   useEffect(() => {
-    if (route) {
+    if (mode === "edit" && route) {
       setName(route.name);
       setDescription(route.description || "");
 
       // 既存の時間を時分秒に分解
       if (route.duration && route.duration > 0) {
-        // route.durationは秒数で保存されている
         const totalSeconds = route.duration;
         const h = Math.floor(totalSeconds / 3600);
         const m = Math.floor((totalSeconds % 3600) / 60);
         const s = totalSeconds % 60;
-
-        console.log(
-          `Debug: route.duration=${route.duration}, totalSeconds=${totalSeconds}, h=${h}, m=${m}, s=${s}`
-        );
 
         setHours(h.toString());
         setMinutes(m.toString());
@@ -75,8 +80,16 @@ const EditRouteModal: React.FC<EditRouteModalProps> = ({
         setSeconds("0");
         setUseManualDuration(false);
       }
+    } else if (mode === "save") {
+      // 新規作成モード時はリセット
+      setName("");
+      setDescription("");
+      setHours("");
+      setMinutes("");
+      setSeconds("");
+      setUseManualDuration(false);
     }
-  }, [route]);
+  }, [mode, route]);
 
   const formatDistance = (meters: number) => {
     if (meters < 1000) {
@@ -85,12 +98,67 @@ const EditRouteModal: React.FC<EditRouteModalProps> = ({
     return `${(meters / 1000).toFixed(2)}km`;
   };
 
-  const formatDuration = (seconds: number) => {
+  const formatDuration = (inputDuration: number) => {
+    let seconds: number;
+    if (mode === "save") {
+      // 新規保存時はミリ秒
+      seconds = Math.floor(inputDuration / 1000);
+    } else {
+      // 編集時は秒数
+      seconds = inputDuration;
+    }
+
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
 
     return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!name.trim()) {
+      setError("ルート名を入力してください");
+      return;
+    }
+
+    try {
+      setError("");
+
+      if (mode === "save" && onSave) {
+        const customDuration = useManualDuration ? getManualDurationSeconds() : undefined;
+        await onSave(name.trim(), description.trim() || undefined, customDuration);
+        // 成功時はリセット
+        setName("");
+        setDescription("");
+        setHours("");
+        setMinutes("");
+        setSeconds("");
+        setUseManualDuration(false);
+      } else if (mode === "edit" && onUpdate && route) {
+        const updates: { name?: string; description?: string; duration?: number } = {
+          name: name.trim(),
+          description: description.trim() || undefined,
+        };
+
+        if (useManualDuration) {
+          updates.duration = getManualDurationSeconds();
+        }
+
+        await onUpdate(route.id, updates);
+      }
+
+      onClose();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : mode === "save"
+          ? "保存に失敗しました"
+          : "更新に失敗しました"
+      );
+    }
   };
 
   const getManualDurationSeconds = (): number => {
@@ -108,40 +176,32 @@ const EditRouteModal: React.FC<EditRouteModalProps> = ({
     return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!route) return;
-
-    if (!name.trim()) {
-      setError("ルート名を入力してください");
-      return;
-    }
-
-    try {
-      setError("");
-      const updates: { name?: string; description?: string; duration?: number } = {
-        name: name.trim(),
-        description: description.trim() || undefined,
-      };
-
-      if (useManualDuration) {
-        updates.duration = getManualDurationSeconds();
-      }
-
-      await onSave(route.id, updates);
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "更新に失敗しました");
-    }
-  };
-
   const handleClose = () => {
+    if (mode === "save") {
+      setName("");
+      setDescription("");
+      setHours("");
+      setMinutes("");
+      setSeconds("");
+      setUseManualDuration(false);
+    }
     setError("");
     onClose();
   };
 
-  if (!route) return null;
+  const getDisplayDistance = () => {
+    if (mode === "edit" && route) {
+      return route.distance;
+    }
+    return distance;
+  };
+
+  const getDisplayDuration = () => {
+    if (mode === "edit" && route) {
+      return route.duration || 0;
+    }
+    return duration;
+  };
 
   return (
     <Dialog
@@ -159,8 +219,8 @@ const EditRouteModal: React.FC<EditRouteModalProps> = ({
     >
       <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         <RunIcon color="primary" />
-        <Typography variant="h5" component="span">
-          ルート編集
+        <Typography variant="h5" component="h2">
+          {mode === "save" ? "ルート保存" : "ルート編集"}
         </Typography>
       </DialogTitle>
 
@@ -178,14 +238,14 @@ const EditRouteModal: React.FC<EditRouteModalProps> = ({
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <Timeline color="primary" />
               <Typography variant="body1" fontWeight="medium">
-                距離: {formatDistance(route.distance)}
+                距離: {formatDistance(getDisplayDistance())}
               </Typography>
             </Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <TimeIcon color="primary" />
               <Typography variant="body1" fontWeight="medium">
                 時間:{" "}
-                {useManualDuration ? getManualDurationText() : formatDuration(route.duration || 0)}
+                {useManualDuration ? getManualDurationText() : formatDuration(getDisplayDuration())}
               </Typography>
             </Box>
           </Box>
@@ -265,9 +325,15 @@ const EditRouteModal: React.FC<EditRouteModalProps> = ({
                 slotProps={{ htmlInput: { maxLength: 2 } }}
               />
             </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
-              現在の時間を編集できます
-            </Typography>
+            {mode === "edit" && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mt: 0.5, display: "block" }}
+              >
+                現在の時間を編集できます
+              </Typography>
+            )}
           </Box>
 
           <TextField
@@ -313,4 +379,4 @@ const EditRouteModal: React.FC<EditRouteModalProps> = ({
   );
 };
 
-export default EditRouteModal;
+export default RouteFormModal;

@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Wrapper } from "@googlemaps/react-wrapper";
-import { RoutePoint } from "../hooks/useRunningRoute";
-import { RunningRoute } from "../lib/supabase";
+import { RoutePoint } from "../../types/route";
+import { RunningRoute } from "../../lib/supabase";
 import CurrentLocationMarker from "./CurrentLocationMarker";
-import RouteAnimationOverlay from "./RouteAnimationOverlay";
-import RouteAnimationControls from "./RouteAnimationControls";
-import { useRouteAnimation, AnimationType } from "../hooks/useRouteAnimation";
+import RouteAnimationOverlay from "../route/animation/RouteAnimationOverlay";
+import RouteAnimationControls from "../route/animation/RouteAnimationControls";
+import { useRouteAnimation, AnimationType } from "../route/animation/useRouteAnimation";
 
 interface GoogleMapProps {
+  apiKey: string;
   center: google.maps.LatLngLiteral;
   zoom: number;
   style?: React.CSSProperties;
@@ -36,9 +37,11 @@ interface GoogleMapProps {
   onPointDoubleClick?: (index: number) => void;
   enableAnimation?: boolean;
   animationType?: AnimationType;
+  onStreetViewModeChange?: (isStreetViewMode: boolean) => void;
 }
 
 const MapComponent: React.FC<GoogleMapProps> = ({
+  apiKey,
   center,
   zoom,
   style,
@@ -64,6 +67,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
   onPointDoubleClick,
   enableAnimation = false,
   animationType = "draw",
+  onStreetViewModeChange,
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -130,6 +134,16 @@ const MapComponent: React.FC<GoogleMapProps> = ({
       if (isEditMode) {
         mapRef.current.addListener("rightclick", (e: google.maps.MapMouseEvent) => {
           e.stop();
+        });
+      }
+
+      // ストリートビューモードの検出
+      const streetView = mapRef.current.getStreetView();
+      if (streetView && onStreetViewModeChange) {
+        // ストリートビューの表示状態を監視
+        streetView.addListener("visible_changed", () => {
+          const isVisible = streetView.getVisible();
+          onStreetViewModeChange(isVisible);
         });
       }
 
@@ -744,7 +758,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             document.addEventListener("mousemove", globalMouseMoveListener);
             document.addEventListener("touchmove", globalTouchMoveListener, { passive: false });
 
-            // 500ms後にドラッグモードを開始
+            // 100ms後にドラッグモードを開始
             longTapTimer = setTimeout(() => {
               // ドラッグモード開始
               dragModeActive = true;
@@ -815,7 +829,7 @@ const MapComponent: React.FC<GoogleMapProps> = ({
                   onPointDeleteRef.current(index);
                 }
               }, 1000); // さらに1000ms後
-            }, 100); // 500ms長押しでドラッグモード開始
+            }, 100); // 100ms長押しでドラッグモード開始
           }
         };
 
@@ -1004,6 +1018,16 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         marker.addListener("dblclick", (e: google.maps.MapMouseEvent) => {
           if (!isEditMode && !isCreationMode) return;
 
+          // ダブルクリック時は長押しタイマーをクリア
+          if (longTapTimer) {
+            clearTimeout(longTapTimer);
+            longTapTimer = null;
+          }
+          if (deleteTimer) {
+            clearTimeout(deleteTimer);
+            deleteTimer = null;
+          }
+
           // ドラッグモード中はダブルクリックを無視
           if (dragModeActive || isDraggingRef.current) {
             e.stop();
@@ -1012,6 +1036,13 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               e.domEvent.preventDefault();
             }
             return;
+          }
+
+          // イベント伝播を停止
+          e.stop();
+          if (e.domEvent) {
+            e.domEvent.stopPropagation();
+            e.domEvent.preventDefault();
           }
 
           // 往復ルート追加処理
@@ -1142,9 +1173,11 @@ const MapComponent: React.FC<GoogleMapProps> = ({
     allRoutesLabelsRef.current = [];
 
     // 全ルート表示のON/OFF切り替え時の処理
-    if (visibleRoutes.size > 0 && allRoutes.length > 0) {
-      // visibleRoutesに含まれるルートのみを表示
-      const routesToDisplay = allRoutes.filter((route) => visibleRoutes.has(route.id));
+    if ((visibleRoutes.size > 0 || selectedRouteId) && allRoutes.length > 0) {
+      // visibleRoutesに含まれるルート + 選択されたルートを表示
+      const routesToDisplay = allRoutes.filter(
+        (route) => visibleRoutes.has(route.id) || route.id === selectedRouteId
+      );
 
       routesToDisplay.forEach((route, routeIndex) => {
         // 距離計算関数
@@ -1312,10 +1345,16 @@ const MapComponent: React.FC<GoogleMapProps> = ({
               zIndex: isSelected ? -80 : isEditMode || isCreationMode ? -120 : -100,
             });
 
-            // 編集・作成モード時に未選択ルートのピンクリックでピン追加
+            // ピンクリック処理
             if (!isSelected && (isEditMode || isCreationMode) && onMapClick) {
+              // 編集・作成モード時：ピン追加
               marker.addListener("click", () => {
                 onMapClick(point.lat, point.lng);
+              });
+            } else if (!isSelected && !isEditMode && !isCreationMode && onRouteSelect) {
+              // 通常モード時：ルート選択
+              marker.addListener("click", () => {
+                onRouteSelect(route);
               });
             }
 
@@ -1365,8 +1404,8 @@ const MapComponent: React.FC<GoogleMapProps> = ({
             }));
             const positions = calculateAllPositions(allPointsForRoute, currentZoom);
             const labelPosition = positions.labelPositions[pointIndex] || {
-              lat: point.lat + (isSelected ? 0.0002 : 0.00015),
-              lng: point.lng,
+              lat: point?.lat + (isSelected ? 0.0002 : 0.00015),
+              lng: point?.lng,
             };
 
             const distanceLabel = new google.maps.Marker({
@@ -1424,32 +1463,61 @@ const MapComponent: React.FC<GoogleMapProps> = ({
         />
       )}
 
-      {/* ルートアニメーション */}
-      {enableAnimation && mapRef.current && (
+      {/* ルートアニメーション - 選択されたルートに対して実行（編集モード時は無効） */}
+      {enableAnimation && mapRef.current && selectedRouteId && !isEditMode && !isCreationMode && (
         <>
-          {routePoints && routePoints.length > 0 && (
-            <RouteAnimationOverlay
-              map={mapRef.current}
-              routePoints={routePoints}
-              isAnimating={isAnimating}
-              animationType={currentAnimationType}
-              animationSpeed={config.speed}
-              color={config.color}
-              lineWidth={config.lineWidth}
-              onAnimationComplete={() => {
-                console.log("Animation completed");
-              }}
-            />
-          )}
+          {(() => {
+            // 選択されたルートのデータを取得
+            const selectedRoute = allRoutes.find((route) => route.id === selectedRouteId);
+            if (!selectedRoute) return null;
+
+            // GeoJSON座標をRoutePointに変換
+            const selectedRoutePoints: RoutePoint[] = selectedRoute.route_data.coordinates.map(
+              (coord, index) => ({
+                lat: coord[1],
+                lng: coord[0],
+                timestamp: Date.now() + index * 1000,
+                accuracy: selectedRoute.elevation_data?.[index] || 5,
+              })
+            );
+
+            return selectedRoutePoints.length > 0 ? (
+              <RouteAnimationOverlay
+                map={mapRef.current!}
+                routePoints={selectedRoutePoints}
+                isAnimating={isAnimating}
+                animationType={currentAnimationType}
+                animationSpeed={config.speed}
+                color={config.color}
+                lineWidth={config.lineWidth}
+                onAnimationComplete={() => {
+                  console.log("Selected route animation completed");
+                }}
+              />
+            ) : null;
+          })()}
           <RouteAnimationControls
             isAnimating={isAnimating}
             animationType={currentAnimationType}
             config={config}
-            onStartAnimation={() => routePoints && startAnimation(routePoints)}
+            onStartAnimation={() => {
+              const selectedRoute = allRoutes.find((route) => route.id === selectedRouteId);
+              if (selectedRoute) {
+                const selectedRoutePoints: RoutePoint[] = selectedRoute.route_data.coordinates.map(
+                  (coord, index) => ({
+                    lat: coord[1],
+                    lng: coord[0],
+                    timestamp: Date.now() + index * 1000,
+                    accuracy: selectedRoute.elevation_data?.[index] || 5,
+                  })
+                );
+                startAnimation(selectedRoutePoints);
+              }
+            }}
             onStopAnimation={stopAnimation}
             onTypeChange={setAnimationType}
             onConfigChange={updateConfig}
-            disabled={!routePoints || routePoints.length === 0}
+            disabled={!selectedRouteId || !allRoutes.find((route) => route.id === selectedRouteId)}
           />
         </>
       )}
@@ -1487,6 +1555,7 @@ interface GoogleMapWrapperProps {
   onPointDoubleClick?: (index: number) => void;
   enableAnimation?: boolean;
   animationType?: AnimationType;
+  onStreetViewModeChange?: (isStreetViewMode: boolean) => void;
 }
 
 const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
@@ -1516,6 +1585,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
   onPointDoubleClick,
   enableAnimation,
   animationType,
+  onStreetViewModeChange,
 }) => {
   const render = (status: any) => {
     switch (status) {
@@ -1526,6 +1596,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
       case "SUCCESS":
         return (
           <MapComponent
+            apiKey={apiKey}
             center={center}
             zoom={zoom}
             style={style}
@@ -1551,6 +1622,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
             onPointDoubleClick={onPointDoubleClick}
             enableAnimation={enableAnimation}
             animationType={animationType}
+            onStreetViewModeChange={onStreetViewModeChange}
           />
         );
       default:
@@ -1561,6 +1633,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
   return (
     <Wrapper apiKey={apiKey} render={render}>
       <MapComponent
+        apiKey={apiKey}
         center={center}
         zoom={zoom}
         style={style}
@@ -1586,6 +1659,7 @@ const GoogleMap: React.FC<GoogleMapWrapperProps> = ({
         onPointDoubleClick={onPointDoubleClick}
         enableAnimation={enableAnimation}
         animationType={animationType}
+        onStreetViewModeChange={onStreetViewModeChange}
       />
     </Wrapper>
   );

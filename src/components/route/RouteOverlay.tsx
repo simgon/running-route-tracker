@@ -27,7 +27,7 @@ import {
   SmartToy as AIIcon,
   Create as CreateIcon,
 } from "@mui/icons-material";
-import { RunningRoute } from "../lib/supabase";
+import { RunningRoute } from "../../lib/supabase";
 
 interface RouteOverlayProps {
   routes: RunningRoute[];
@@ -106,8 +106,15 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
       return;
     }
     setDraggedRoute(route);
+    setIsDragging(true);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", route.id);
+    
+    // ドラッグ中はスクロールを無効化
+    const scrollContainer = document.querySelector('[data-route-scroll-container]') as HTMLElement;
+    if (scrollContainer) {
+      scrollContainer.style.overflowY = 'hidden';
+    }
   };
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
@@ -145,6 +152,17 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
   const handleDragEnd = () => {
     setDraggedRoute(null);
     setDragOverIndex(null);
+    
+    // スクロールを再有効化
+    const scrollContainer = document.querySelector('[data-route-scroll-container]') as HTMLElement;
+    if (scrollContainer) {
+      scrollContainer.style.overflowY = 'auto';
+    }
+    
+    // ドラッグ終了後の短時間、クリックイベントを無効化
+    setTimeout(() => {
+      setIsDragging(false);
+    }, 100);
   };
 
   // リサイザーハンドラー
@@ -332,6 +350,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
 
       <Box
         ref={scrollContainerRef}
+        data-route-scroll-container
         sx={{
           display: isExpanded ? "grid" : "flex",
           gridTemplateColumns: isExpanded
@@ -435,7 +454,11 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                   },
                 }}
               >
-                {isCopyMode ? <CreateIcon sx={{ fontSize: 16 }} /> : <CopyIcon sx={{ fontSize: 16 }} />}
+                {isCopyMode ? (
+                  <CreateIcon sx={{ fontSize: 16 }} />
+                ) : (
+                  <CopyIcon sx={{ fontSize: 16 }} />
+                )}
               </IconButton>
             </Tooltip>
 
@@ -470,7 +493,11 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
               }}
             >
               <div style={{ fontSize: isMobile ? "20px" : "24px", marginBottom: "8px" }}>
-                {isCopyMode ? <CopyIcon sx={{ fontSize: 'inherit' }} /> : <AddIcon sx={{ fontSize: 'inherit' }} />}
+                {isCopyMode ? (
+                  <CopyIcon sx={{ fontSize: "inherit" }} />
+                ) : (
+                  <AddIcon sx={{ fontSize: "inherit" }} />
+                )}
               </div>
               <div style={{ fontSize: isMobile ? "11px" : "13px", lineHeight: "1.2" }}>
                 {isCopyMode ? "ルートコピー\n(ルートを選択)" : "新規ルート作成"}
@@ -522,7 +549,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
             }}
           >
             <div style={{ fontSize: isMobile ? "20px" : "24px", marginBottom: "8px" }}>
-              <AIIcon sx={{ fontSize: 'inherit' }} />
+              <AIIcon sx={{ fontSize: "inherit" }} />
             </div>
             <div style={{ fontSize: isMobile ? "12px" : "14px" }}>AIルート生成</div>
           </div>
@@ -655,6 +682,13 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                   draggable
                   onDragStart={(e) => handleDragStart(e, route, true)}
                   onDragEnd={handleDragEnd}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
                   sx={{
                     position: "absolute",
                     top: 4,
@@ -666,6 +700,7 @@ const RouteOverlay: React.FC<RouteOverlayProps> = ({
                     color: "grey.400",
                     cursor: "grab",
                     borderRadius: "4px",
+                    touchAction: "none", // タッチ操作でのスクロールを無効化
                     "&:hover": {
                       backgroundColor: "grey.100",
                     },

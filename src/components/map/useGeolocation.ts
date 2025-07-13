@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 export interface CustomGeolocationPosition {
   lat: number;
@@ -35,7 +35,7 @@ export const useGeolocation = (): UseGeolocationReturn => {
       lng: pos.coords.longitude,
       accuracy: pos.coords.accuracy,
       timestamp: pos.timestamp,
-      heading: pos.coords.heading || undefined // 方向情報（nullの場合はundefined）
+      heading: pos.coords.heading || undefined, // 方向情報（nullの場合はundefined）
     };
     setPosition(newPosition);
     setError(null);
@@ -43,8 +43,16 @@ export const useGeolocation = (): UseGeolocationReturn => {
   };
 
   const handleError = (err: GeolocationPositionError) => {
+    console.error("位置情報エラー詳細:", {
+      code: err.code,
+      message: err.message,
+      PERMISSION_DENIED: err.PERMISSION_DENIED,
+      POSITION_UNAVAILABLE: err.POSITION_UNAVAILABLE,
+      TIMEOUT: err.TIMEOUT
+    });
+
     let message = err.message;
-    
+
     // より分かりやすいエラーメッセージに変換
     switch (err.code) {
       case err.PERMISSION_DENIED:
@@ -57,14 +65,14 @@ export const useGeolocation = (): UseGeolocationReturn => {
         message = "位置情報の取得がタイムアウトしました。";
         break;
     }
-    
+
     const newError: GeolocationError = {
       code: err.code,
-      message: message
+      message: message,
     };
     setError(newError);
     setLoading(false);
-    
+
     // Position unavailableエラーの場合、トラッキングを停止
     if (err.code === err.POSITION_UNAVAILABLE) {
       setIsTracking(false);
@@ -79,7 +87,7 @@ export const useGeolocation = (): UseGeolocationReturn => {
     if (!navigator.geolocation) {
       setError({
         code: -1,
-        message: 'Geolocation is not supported by this browser.'
+        message: "Geolocation is not supported by this browser.",
       });
       return;
     }
@@ -92,15 +100,11 @@ export const useGeolocation = (): UseGeolocationReturn => {
     const options: PositionOptions = {
       enableHighAccuracy: true,
       timeout: 15000, // タイムアウトを延長
-      maximumAge: 5000 // キャッシュ期間を延長
+      maximumAge: 5000, // キャッシュ期間を延長
     };
 
     // リアルタイム位置追跡を開始
-    const id = navigator.geolocation.watchPosition(
-      handleSuccess,
-      handleError,
-      options
-    );
+    const id = navigator.geolocation.watchPosition(handleSuccess, handleError, options);
 
     setWatchId(id);
   };
@@ -118,15 +122,11 @@ export const useGeolocation = (): UseGeolocationReturn => {
   useEffect(() => {
     if (navigator.geolocation) {
       setLoading(true);
-      navigator.geolocation.getCurrentPosition(
-        handleSuccess,
-        handleError,
-        {
-          enableHighAccuracy: false, // 初回は低精度で高速取得
-          timeout: 8000,
-          maximumAge: 300000 // 5分間キャッシュ
-        }
-      );
+      navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
+        enableHighAccuracy: false,
+        timeout: 8000,
+        maximumAge: 300000,
+      });
     }
   }, []);
 
@@ -145,6 +145,6 @@ export const useGeolocation = (): UseGeolocationReturn => {
     loading,
     startTracking,
     stopTracking,
-    isTracking
+    isTracking,
   };
 };

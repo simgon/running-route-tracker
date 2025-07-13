@@ -5,8 +5,8 @@ import {
   updateRunningRoute,
   deleteRunningRoute,
   RunningRoute,
-} from "../lib/supabase";
-import { RoutePoint } from "./useRunningRoute";
+} from "../../lib/supabase";
+import { RoutePoint } from "../../types/route";
 import { LineString } from "geojson";
 
 export interface UseRouteStorageReturn {
