@@ -902,14 +902,14 @@ const MainApp: React.FC = () => {
   }, [user, previousUser, loadUserRoutes]);
 
 
-  // 初回位置取得時にマップを現在位置に移動（トラッキング開始前のみ）
+  // 初回位置取得時にマップを現在位置に移動（アプリ開始時のみ）
   useEffect(() => {
-    if (position && !initialLocationSet && !isTracking) {
+    if (position && !initialLocationSet) {
       console.log('初回位置取得 - マップを現在位置に移動:', position);
       setMapCenter({ lat: position.lat, lng: position.lng });
       setInitialLocationSet(true);
     }
-  }, [position, initialLocationSet, isTracking]);
+  }, [position, initialLocationSet]);
 
   // トラッキング中の位置更新でマーカーを更新
   useEffect(() => {
