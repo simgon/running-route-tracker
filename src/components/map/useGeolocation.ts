@@ -100,7 +100,7 @@ export const useGeolocation = (): UseGeolocationReturn => {
     const options: PositionOptions = {
       enableHighAccuracy: true,
       timeout: 15000, // タイムアウトを延長
-      maximumAge: 5000, // キャッシュ期間を延長
+      maximumAge: 1000, // キャッシュ期間を短縮してより頻繁な更新
     };
 
     // リアルタイム位置追跡を開始

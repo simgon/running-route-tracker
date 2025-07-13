@@ -138,7 +138,7 @@ const MainApp: React.FC = () => {
         setTimeout(() => {
           window.removeEventListener(eventType, orientationHandler, true);
           resolve(degrees || 0);
-        }, 500);
+        }, 200);
       };
 
       // iOSの場合はPermission要求
@@ -916,8 +916,8 @@ const MainApp: React.FC = () => {
     if (position && isTracking) {
       const now = Date.now();
       
-      // 500ms以内の連続更新を制限
-      if (now - lastUpdateTime < 500) {
+      // 200ms以内の連続更新を制限
+      if (now - lastUpdateTime < 200) {
         return;
       }
       
