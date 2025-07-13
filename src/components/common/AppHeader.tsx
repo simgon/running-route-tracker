@@ -1,6 +1,6 @@
 import React from "react";
 import { IconButton, Tooltip, Button, Box } from "@mui/material";
-import { DirectionsRun, Help, Movie, Person, Logout as LogoutIcon } from "@mui/icons-material";
+import { Help, Movie, Person, Logout as LogoutIcon } from "@mui/icons-material";
 import { useAuth } from "../../contexts/AuthContext";
 
 interface AppHeaderProps {
@@ -54,7 +54,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         }}
         onClick={() => window.location.reload()}
       >
-        <DirectionsRun sx={{ fontSize: "1.8rem", color: "#4caf50" }} />
+        <img 
+          src="/logo192.png" 
+          alt="ランメモ ロゴ" 
+          style={{ 
+            width: "28px", 
+            height: "28px", 
+            borderRadius: "4px" 
+          }} 
+        />
         <div>
           <h1
             style={{
