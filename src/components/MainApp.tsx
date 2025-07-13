@@ -123,9 +123,13 @@ const MainApp: React.FC = () => {
 
       const orientationHandler = (event: any) => {
         if (isIOS) {
-          degrees = event.webkitCompassHeading || event.alpha || 0;
+          const heading = event.webkitCompassHeading || event.alpha || 0;
+          // iOS用の90度補正
+          degrees = (heading - 90 + 360) % 360;
         } else {
-          degrees = event.alpha || 0;
+          const heading = event.alpha || 0;
+          // Android用の90度補正
+          degrees = (heading - 90 + 360) % 360;
         }
       };
 
@@ -170,10 +174,6 @@ const MainApp: React.FC = () => {
     }
   };
 
-  // 現在位置マーカーのフェードアウト完了
-  const handleCurrentLocationFadeComplete = () => {
-    setCurrentLocationMarker(null);
-  };
 
   // 距離計算関数
   const calculateTotalDistance = (points: RoutePoint[]) => {
@@ -937,8 +937,8 @@ const MainApp: React.FC = () => {
 
       updateMarkerWithHeading();
       
-      // マップの中心移動は初回のみ、または大きく移動した場合のみ
-      if (mapRef.current) {
+      // トラッキング中のみマップの中心移動を行う
+      if (isTracking && mapRef.current) {
         const currentCenter = mapRef.current.getCenter();
         if (currentCenter) {
           // 簡易的な距離計算（geometry libraryを使わない）
@@ -996,7 +996,6 @@ const MainApp: React.FC = () => {
                   mapRef.current = map;
                 }}
                 currentLocationMarker={currentLocationMarker}
-                onCurrentLocationFadeComplete={handleCurrentLocationFadeComplete}
                 enableAnimation={enableRouteAnimation}
                 animationType="draw"
               />

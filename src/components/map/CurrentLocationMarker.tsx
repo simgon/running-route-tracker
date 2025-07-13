@@ -4,14 +4,12 @@ interface CurrentLocationMarkerProps {
   position: { lat: number; lng: number };
   heading?: number; // 方向（度）
   map: google.maps.Map;
-  onFadeComplete?: () => void;
 }
 
 const CurrentLocationMarker: React.FC<CurrentLocationMarkerProps> = ({
   position,
   heading = 0,
   map,
-  onFadeComplete,
 }) => {
   const markerRef = useRef<google.maps.Marker | null>(null);
 
@@ -67,41 +65,13 @@ const CurrentLocationMarker: React.FC<CurrentLocationMarkerProps> = ({
 
     markerRef.current = marker;
 
-    // フェードアウトタイマー
-    const fadeTimer = setTimeout(() => {
-      let opacity = 1;
-      const fadeInterval = setInterval(() => {
-        opacity -= 0.05;
-        if (opacity <= 0) {
-          clearInterval(fadeInterval);
-          if (markerRef.current) {
-            markerRef.current.setMap(null);
-          }
-          if (onFadeComplete) {
-            onFadeComplete();
-          }
-        } else {
-          // マーカーの不透明度を更新
-          if (markerRef.current) {
-            const icon = markerRef.current.getIcon() as google.maps.Icon;
-            if (icon && typeof icon === "object") {
-              markerRef.current.setIcon({
-                ...icon,
-                url: icon.url?.replace(/opacity="[\d.]*"/, `opacity="${opacity}"`),
-              });
-            }
-          }
-        }
-      }, 100);
-    }, 8000);
-
+    // マーカーを永続表示（トラッキング停止時に手動で削除）
     return () => {
-      clearTimeout(fadeTimer);
       if (markerRef.current) {
         markerRef.current.setMap(null);
       }
     };
-  }, [position, heading, map, onFadeComplete]);
+  }, [position, heading, map]);
 
   return null;
 };
