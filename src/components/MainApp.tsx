@@ -62,7 +62,6 @@ const MainApp: React.FC = () => {
   const [undoStack, setUndoStack] = useState<RoutePoint[][]>([]);
   const [initialLocationSet, setInitialLocationSet] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState(0);
-  const [hasMovedToCurrentLocation, setHasMovedToCurrentLocation] = useState(false);
   const mapRef = useRef<google.maps.Map | null>(null);
 
 
@@ -140,7 +139,7 @@ const MainApp: React.FC = () => {
         setTimeout(() => {
           window.removeEventListener(eventType, orientationHandler, true);
           resolve(degrees || 0);
-        }, 1000);
+        }, 500);
       };
 
       // iOSの場合はPermission要求
@@ -167,7 +166,12 @@ const MainApp: React.FC = () => {
   const handleLocationToggle = (enable: boolean) => {
     if (enable) {
       startTracking();
-      setHasMovedToCurrentLocation(false); // トラッキング開始時にリセット
+      
+      // 初回開始時のみマップを現在位置に移動
+      if (position && mapRef.current) {
+        mapRef.current.setCenter({ lat: position.lat, lng: position.lng });
+      }
+      
       showToast("位置情報トラッキングを開始しました", "success");
     } else {
       stopTracking();
@@ -914,8 +918,8 @@ const MainApp: React.FC = () => {
     if (position && isTracking) {
       const now = Date.now();
       
-      // 2秒以内の連続更新を制限
-      if (now - lastUpdateTime < 2000) {
+      // 500ms以内の連続更新を制限
+      if (now - lastUpdateTime < 500) {
         return;
       }
       
@@ -938,14 +942,8 @@ const MainApp: React.FC = () => {
       };
 
       updateMarkerWithHeading();
-      
-      // トラッキング開始後の初回のみマップの中心移動を行う
-      if (isTracking && !hasMovedToCurrentLocation && mapRef.current) {
-        mapRef.current.setCenter({ lat: position.lat, lng: position.lng });
-        setHasMovedToCurrentLocation(true);
-      }
     }
-  }, [position, isTracking, lastUpdateTime, hasMovedToCurrentLocation]);
+  }, [position, isTracking, lastUpdateTime]);
 
   return (
     <div className="App">
