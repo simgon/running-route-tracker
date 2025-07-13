@@ -62,6 +62,7 @@ const MainApp: React.FC = () => {
   const [undoStack, setUndoStack] = useState<RoutePoint[][]>([]);
   const [initialLocationSet, setInitialLocationSet] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState(0);
+  const [hasMovedToCurrentLocation, setHasMovedToCurrentLocation] = useState(false);
   const mapRef = useRef<google.maps.Map | null>(null);
 
 
@@ -166,6 +167,7 @@ const MainApp: React.FC = () => {
   const handleLocationToggle = (enable: boolean) => {
     if (enable) {
       startTracking();
+      setHasMovedToCurrentLocation(false); // トラッキング開始時にリセット
       showToast("位置情報トラッキングを開始しました", "success");
     } else {
       stopTracking();
@@ -937,23 +939,13 @@ const MainApp: React.FC = () => {
 
       updateMarkerWithHeading();
       
-      // トラッキング中のみマップの中心移動を行う
-      if (isTracking && mapRef.current) {
-        const currentCenter = mapRef.current.getCenter();
-        if (currentCenter) {
-          // 簡易的な距離計算（geometry libraryを使わない）
-          const latDiff = Math.abs(currentCenter.lat() - position.lat);
-          const lngDiff = Math.abs(currentCenter.lng() - position.lng);
-          const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
-          
-          // 0.0005度以上移動した場合のみマップ中心を更新（約50m相当）
-          if (distance > 0.0005) {
-            mapRef.current.setCenter({ lat: position.lat, lng: position.lng });
-          }
-        }
+      // トラッキング開始後の初回のみマップの中心移動を行う
+      if (isTracking && !hasMovedToCurrentLocation && mapRef.current) {
+        mapRef.current.setCenter({ lat: position.lat, lng: position.lng });
+        setHasMovedToCurrentLocation(true);
       }
     }
-  }, [position, isTracking, lastUpdateTime]);
+  }, [position, isTracking, lastUpdateTime, hasMovedToCurrentLocation]);
 
   return (
     <div className="App">

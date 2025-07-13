@@ -12,8 +12,21 @@ const CurrentLocationMarker: React.FC<CurrentLocationMarkerProps> = ({
   map,
 }) => {
   const markerRef = useRef<google.maps.Marker | null>(null);
+  const lastHeadingRef = useRef<number>(heading);
 
   useEffect(() => {
+    // 方角の急激な変化を防ぐ（180度以上の変化を補正）
+    const smoothHeading = (newHeading: number, lastHeading: number) => {
+      const diff = ((newHeading - lastHeading + 540) % 360) - 180;
+      if (Math.abs(diff) > 180) {
+        return lastHeading + (diff > 0 ? diff - 360 : diff + 360);
+      }
+      return newHeading;
+    };
+
+    const adjustedHeading = smoothHeading(heading, lastHeadingRef.current);
+    lastHeadingRef.current = adjustedHeading;
+
     // SVGアイコンを作成（青い丸と方向を示す扇形）
     const createLocationIcon = (heading: number) => {
       console.log("CurrentLocationMarker: heading =", heading);
@@ -39,9 +52,17 @@ const CurrentLocationMarker: React.FC<CurrentLocationMarkerProps> = ({
       return {
         url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
           <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
-            ${heading !== 0 ? `<!-- 方向を示す扇形 -->
-            <path d="M ${centerX} ${centerY} L ${startX} ${startY} A ${fanLength} ${fanLength} 0 0 1 ${endX} ${endY} Z" 
-                  fill="rgba(25, 118, 210, 0.3)" stroke="none"/>` : ''}
+            <style>
+              .direction-indicator {
+                transition: transform 0.5s ease-out;
+                transform-origin: ${centerX}px ${centerY}px;
+              }
+            </style>
+            <g class="direction-indicator">
+              ${heading !== 0 ? `<!-- 方向を示す扇形 -->
+              <path d="M ${centerX} ${centerY} L ${startX} ${startY} A ${fanLength} ${fanLength} 0 0 1 ${endX} ${endY} Z" 
+                    fill="rgba(25, 118, 210, 0.3)" stroke="none"/>` : ''}
+            </g>
             <!-- 青い丸 -->
             <circle cx="${centerX}" cy="${centerY}" r="${radius}" 
                     fill="#1976d2" stroke="white" stroke-width="3"/>
@@ -59,7 +80,7 @@ const CurrentLocationMarker: React.FC<CurrentLocationMarkerProps> = ({
     const marker = new google.maps.Marker({
       position: { lat: position.lat, lng: position.lng },
       map: map,
-      icon: createLocationIcon(heading),
+      icon: createLocationIcon(adjustedHeading),
       zIndex: 1000,
     });
 
