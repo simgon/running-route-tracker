@@ -105,75 +105,15 @@ const MainApp: React.FC = () => {
     setUndoStack([]);
   };
 
-  // 現在位置を取得して表示
-  const handleCurrentLocationClick = async () => {
-    if (!navigator.geolocation) {
-      showToast("現在位置の取得に対応していません", "error");
-      return;
-    }
-
-    try {
-      // まず高精度で試行、失敗したら低精度で再試行
-      let position: GeolocationPosition;
-      try {
-        console.log("高精度位置取得を試行中...");
-        position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 8000, // PCでは短めに
-            maximumAge: 60000,
-          });
-        });
-        console.log("高精度位置取得成功");
-      } catch (highAccuracyError) {
-        console.log("高精度位置取得に失敗、低精度で再試行:", highAccuracyError);
-
-        // 低精度で再試行
-        position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: false,
-            timeout: 20000, // PCでは長めに
-            maximumAge: 600000, // 10分間キャッシュ
-          });
-        });
-        console.log("低精度位置取得成功");
-      }
-
-      const { latitude, longitude, accuracy } = position.coords;
-      const currentPos = { lat: latitude, lng: longitude };
-
-      console.log("取得した位置情報:", {
-        latitude,
-        longitude,
-        heading: "GPSからは取得不可",
-        accuracy: accuracy ? `${Math.round(accuracy)}m` : "不明",
-        timestamp: new Date(position.timestamp).toLocaleString(),
-      });
-
-      // マップを現在位置に移動（ズーム調整なし）
-      if (mapRef.current) {
-        mapRef.current.setCenter(currentPos);
-      }
-
-      // デバイスの方向を取得（DeviceOrientationEventから）
-      let deviceHeading = 0;
-
-      // コンパス方向を取得（モバイルデバイスの場合）
-      try {
-        deviceHeading = await getCompassHeading();
-      } catch (compassError) {
-        console.log("コンパス取得に失敗:", compassError);
-        deviceHeading = 0;
-      }
-
-      // 現在位置マーカーを表示
-      setCurrentLocationMarker({
-        position: currentPos,
-        heading: deviceHeading,
-      });
-    } catch (error) {
-      console.error("現在位置の取得に失敗:", error);
-      showToast("現在位置の取得に失敗しました", "error");
+  // 位置情報トラッキングのトグル
+  const handleLocationToggle = (enable: boolean) => {
+    if (enable) {
+      startTracking();
+      showToast("位置情報トラッキングを開始しました", "success");
+    } else {
+      stopTracking();
+      setCurrentLocationMarker(null); // マーカーを非表示
+      showToast("位置情報トラッキングを停止しました", "success");
     }
   };
 
@@ -818,109 +758,6 @@ const MainApp: React.FC = () => {
     }
   };
 
-  // OS判定関数
-  const detectOS = (): string => {
-    const userAgent = navigator.userAgent.toLowerCase();
-    if (/iphone|ipad|ipod/.test(userAgent)) {
-      return "iphone";
-    } else if (/android/.test(userAgent)) {
-      return "android";
-    } else {
-      return "other";
-    }
-  };
-
-  // コンパス補正関数（Android用）
-  const compassHeading = (alpha: number, beta: number, gamma: number): number => {
-    // アルファ値を使用してコンパス方向を計算
-    return alpha;
-  };
-
-  // 端末方位を取得
-  const getCompassHeading = (): Promise<number> => {
-    return new Promise((resolve) => {
-      // OS判定
-      const os = detectOS();
-      let eventType: string;
-
-      if (os === "iphone") {
-        eventType = "deviceorientation";
-      } else if (os === "android") {
-        eventType = "deviceorientationabsolute";
-      } else {
-        resolve(0);
-        return;
-      }
-
-      let degrees: number | null = null;
-
-      // ジャイロスコープと地磁気をセンサーから取得
-      const orientationHandler = (event: any) => {
-        if (os === "iphone") {
-          // webkitCompassHeading値を採用（90度補正）
-          let heading = event.webkitCompassHeading || event.alpha || 0;
-          // iOS でも90度補正（座標系の違いを調整）
-          degrees = (heading - 90 + 360) % 360;
-        } else {
-          // deviceorientationabsoluteイベントのalphaを補正
-          let correctedHeading = compassHeading(event.alpha || 0, event.beta || 0, event.gamma || 0);
-          // 90度補正（座標系の違いを調整）
-          correctedHeading = (correctedHeading - 90 + 360) % 360;
-          degrees = correctedHeading;
-        }
-      };
-
-      // iOS 13+ でのPermission要求（必要な場合）
-      const setupEventListener = () => {
-        // イベントリスナーを登録
-        window.addEventListener(eventType, orientationHandler, true);
-
-        let retry = 1;
-
-        // 端末方位を取得できたかを検知
-        const degreesInterval = setInterval(() => {
-          // 端末方位を取得できた場合
-          if (degrees !== null) {
-            // タイマーを停止
-            clearInterval(degreesInterval);
-            // イベントリスナーを削除
-            window.removeEventListener(eventType, orientationHandler, true);
-            resolve(degrees);
-          }
-          // 3回までリトライ
-          if (retry >= 3) {
-            // タイマーを停止
-            clearInterval(degreesInterval);
-            // イベントリスナーを削除
-            window.removeEventListener(eventType, orientationHandler, true);
-            resolve(0);
-          }
-          retry++;
-        }, 100);
-      };
-
-      // iOSの場合はPermission要求
-      if (
-        os === "iphone" &&
-        typeof (DeviceOrientationEvent as any).requestPermission === "function"
-      ) {
-        (DeviceOrientationEvent as any)
-          .requestPermission()
-          .then((response: string) => {
-            if (response === "granted") {
-              setupEventListener();
-            } else {
-              resolve(0);
-            }
-          })
-          .catch(() => {
-            resolve(0);
-          });
-      } else {
-        setupEventListener();
-      }
-    });
-  };
 
 
   // キーボードナビゲーション（左右矢印キーでルート選択）
@@ -1017,6 +854,21 @@ const MainApp: React.FC = () => {
     }
   }, [position, initialLocationSet]);
 
+  // トラッキング中の位置更新でマーカーを更新
+  useEffect(() => {
+    if (position && isTracking) {
+      setCurrentLocationMarker({
+        position: { lat: position.lat, lng: position.lng },
+        heading: position.heading || 0,
+      });
+      
+      // マップの中心をユーザーの現在位置に移動
+      if (mapRef.current) {
+        mapRef.current.setCenter({ lat: position.lat, lng: position.lng });
+      }
+    }
+  }, [position, isTracking]);
+
   return (
     <div className="App">
       <div className="App-header">
@@ -1065,8 +917,9 @@ const MainApp: React.FC = () => {
 
               {!isStreetViewMode && (
                 <CurrentLocationButton
-                  onLocationClick={handleCurrentLocationClick}
+                  onLocationToggle={handleLocationToggle}
                   disabled={loading}
+                  isTracking={isTracking}
                 />
               )}
 
