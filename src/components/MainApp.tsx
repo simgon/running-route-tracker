@@ -64,15 +64,14 @@ const MainApp: React.FC = () => {
   const [lastUpdateTime, setLastUpdateTime] = useState(0);
   const mapRef = useRef<google.maps.Map | null>(null);
 
-
   // デフォルトの位置（東京駅）
   const defaultCenter = {
     lat: 35.6762,
     lng: 139.6503,
   };
 
-  // 現在位置があれば使用、なければデフォルト（初回のみデフォルト使用）
-  const mapCenter = position ? { lat: position.lat, lng: position.lng } : defaultCenter;
+  const [mapCenter, setMapCenter] = useState(defaultCenter);
+
   const userPosition = position ? { lat: position.lat, lng: position.lng } : null;
 
   const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "";
@@ -168,8 +167,8 @@ const MainApp: React.FC = () => {
       startTracking();
       
       // 初回開始時のみマップを現在位置に移動
-      if (position && mapRef.current) {
-        mapRef.current.setCenter({ lat: position.lat, lng: position.lng });
+      if (position) {
+        setMapCenter({ lat: position.lat, lng: position.lng });
       }
       
       showToast("位置情報トラッキングを開始しました", "success");
@@ -903,15 +902,14 @@ const MainApp: React.FC = () => {
   }, [user, previousUser, loadUserRoutes]);
 
 
-  // 初回位置取得時にマップを現在位置に移動
+  // 初回位置取得時にマップを現在位置に移動（トラッキング開始前のみ）
   useEffect(() => {
-    if (position && mapRef.current && !initialLocationSet) {
+    if (position && !initialLocationSet && !isTracking) {
       console.log('初回位置取得 - マップを現在位置に移動:', position);
-      mapRef.current.setCenter({ lat: position.lat, lng: position.lng });
-      mapRef.current.setZoom(15);
+      setMapCenter({ lat: position.lat, lng: position.lng });
       setInitialLocationSet(true);
     }
-  }, [position, initialLocationSet]);
+  }, [position, initialLocationSet, isTracking]);
 
   // トラッキング中の位置更新でマーカーを更新
   useEffect(() => {
