@@ -30,11 +30,11 @@ export const saveRunningRoute = async (route: Omit<RunningRoute, 'id' | 'created
   const { data: { user } } = await supabase.auth.getUser();
   
   let routeData;
-  if (user) {
-    // 認証済みユーザー
+  if (user && user.email) {
+    // 認証済みユーザー（メールアドレスを使用）
     routeData = {
       ...route,
-      user_id: user.id,
+      user_id: user.email,  // メールアドレスを使用
       anonymous_user_id: null,
       is_visible: route.is_visible ?? true  // デフォルトは表示
     };
@@ -88,9 +88,9 @@ export const getUserRunningRoutes = async (anonymousUserId?: string) => {
     .from('running_routes')
     .select('*');
   
-  if (user) {
-    // 認証済みユーザーのルートを取得
-    query = query.eq('user_id', user.id);
+  if (user && user.email) {
+    // 認証済みユーザーのルートを取得（メールアドレスを使用）
+    query = query.eq('user_id', user.email);
   } else if (anonymousUserId) {
     // 匿名ユーザーのルートを取得
     query = query.eq('anonymous_user_id', anonymousUserId);
@@ -177,7 +177,7 @@ export const updateRouteVisibility = async (routeId: string, isVisible: boolean)
 };
 
 // 匿名ユーザーのルートを認証済みユーザーに移行する関数
-export const migrateAnonymousRoutesToUser = async (userId: string, anonymousUserId: string) => {
+export const migrateAnonymousRoutesToUser = async (userEmail: string, anonymousUserId: string) => {
   try {
     // 匿名ユーザーのルートを取得
     const { data: anonymousRoutes, error: fetchError } = await supabase
@@ -193,11 +193,11 @@ export const migrateAnonymousRoutesToUser = async (userId: string, anonymousUser
       return { migratedCount: 0 };
     }
 
-    // 各ルートのuser_idを更新し、anonymous_user_idをnullに設定
+    // 各ルートのuser_idをメールアドレスで更新し、anonymous_user_idをnullに設定
     const { data: updatedRoutes, error: updateError } = await supabase
       .from('running_routes')
       .update({
-        user_id: userId,
+        user_id: userEmail,  // メールアドレスを使用
         anonymous_user_id: null,
         updated_at: new Date().toISOString()
       })
